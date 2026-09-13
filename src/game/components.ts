@@ -28,12 +28,39 @@ export class Health {
 	}
 }
 
+/** Visual kind id resolved by the Pixi view ('player' | 'zombie' | 'bolt'). */
 @component()
 export class Sprite {
-	color = 0xffffff;
-	size = 12;
-	constructor(color = 0xffffff, size = 12) {
-		this.color = color;
-		this.size = size;
+	texture = "player";
+	constructor(texture = "player") {
+		this.texture = texture;
+	}
+}
+
+/** Tag: keyboard-controlled. Systems key AI vs player off this. */
+@component()
+export class PlayerTag {}
+
+/** Tag: slain entities drop nothing yet; marks distractions for bolts. */
+@component()
+export class FoeTag {}
+
+@component()
+export class Gun {
+	cooldown = 0;
+	dir = 1;
+	constructor(cooldown = 0, dir = 1) {
+		this.cooldown = cooldown;
+		this.dir = dir;
+	}
+}
+
+@component()
+export class Projectile {
+	damage = 1;
+	life = 1;
+	constructor(damage = 1, life = 1) {
+		this.damage = damage;
+		this.life = life;
 	}
 }

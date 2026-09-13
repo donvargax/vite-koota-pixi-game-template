@@ -14,6 +14,8 @@ export default defineConfig({
 	},
 	fmt: {},
 	lint: {
+		// Vendored third-party content: Tiled ships a .tsx that is really XML.
+		ignorePatterns: ["public/assets/**", "dist/**"],
 		jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
 		rules: { "vite-plus/prefer-vite-plus-imports": "error" },
 		options: { typeAware: true, typeCheck: true },
