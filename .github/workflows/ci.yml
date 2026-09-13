@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: voidzero-dev/setup-vp@v0.3.1
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp install
+      - run: vp check
+      - run: vp test
+      - run: vp run test:coverage
+      - run: vp build
+      - run: vp run audit
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run e2e

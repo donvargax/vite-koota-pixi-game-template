@@ -9,6 +9,7 @@
 		"preview": "vp preview",
 		"prepare": "vp config",
 		"test": "vp test run",
+		"test:coverage": "vp test run --coverage",
 		"test:watch": "vp test watch",
 		"e2e": "playwright test",
 		"audit": "fallow audit"

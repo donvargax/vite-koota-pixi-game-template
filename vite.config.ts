@@ -6,11 +6,31 @@ export default defineConfig({
 		// public/assets contains third-party files with misleading
 		// extensions (e.g. Tiled .tsx which is XML, not TypeScript).
 		"{src,e2e}/**/*.{ts,tsx,js,jsx,json}": "vp check --fix",
-		"*.{json,md}": "vp check --fix",
+		"{docs,.github}/**/*.{md,yml,yaml}": "vp check --fix",
+		"*.{json,md,ts}": "vp check --fix",
 	},
 	test: {
 		// Playwright specs live in e2e/ and run via `pnpm e2e`, not vitest.
 		exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
+		coverage: {
+			provider: "v8",
+			reporter: ["text", "html"],
+			include: [
+				"src/ecs/**/*.ts",
+				"src/game/audio.ts",
+				"src/game/contracts.ts",
+				"src/game/game-view-model.ts",
+				"src/game/input.ts",
+				"src/game/systems.ts",
+			],
+			exclude: ["**/*.test.ts"],
+			thresholds: {
+				statements: 90,
+				branches: 75,
+				functions: 90,
+				lines: 90,
+			},
+		},
 	},
 	fmt: {},
 	lint: {
