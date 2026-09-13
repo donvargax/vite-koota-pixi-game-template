@@ -1,0 +1,31 @@
+{
+	"name": "terrariavania",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vp dev",
+		"build": "tsc && vp build",
+		"preview": "vp preview",
+		"prepare": "vp config",
+		"test": "vp test run",
+		"test:watch": "vp test watch",
+		"e2e": "playwright test",
+		"audit": "fallow audit"
+	},
+	"dependencies": {
+		"koota": "^0.6.6",
+		"pixi.js": "^8.20.1"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.63.0",
+		"@vitest/coverage-v8": "catalog:",
+		"fallow": "^3.25.0",
+		"playwright": "^1.63.0",
+		"typescript": "~6.0.2",
+		"vite": "catalog:",
+		"vite-plus": "catalog:",
+		"vitest": "catalog:"
+	},
+	"packageManager": "pnpm@12.4.1"
+}
