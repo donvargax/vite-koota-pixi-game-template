@@ -86,7 +86,7 @@ interface QueryMeta {
 
 const queryMeta = new Map<object, Map<string | symbol, QueryMeta>>();
 const systemPriorities = new Map<SystemConstructor, number>();
-const systemOwners = new WeakMap<GameSystem, World>();
+const usedSystems = new WeakSet<GameSystem>();
 const usedSystemArrays = new WeakSet<object>();
 
 export function query(...types: Ctor[]): PropertyDecorator {
@@ -311,7 +311,6 @@ export class World {
 			} catch (error) {
 				firstError ??= error;
 			}
-			if (systemOwners.get(system) === this) systemOwners.delete(system);
 		}
 		this.systems = [];
 		this.scope.dispose();
@@ -354,7 +353,7 @@ export class World {
 				if (!(instance instanceof GameSystem)) {
 					throw new Error("World.create() factory must return GameSystem instances");
 				}
-				if (seenInstances.has(instance) || systemOwners.has(instance)) {
+				if (seenInstances.has(instance) || usedSystems.has(instance)) {
 					throw new Error("A GameSystem instance cannot be installed in multiple Worlds");
 				}
 				seenInstances.add(instance);
@@ -367,7 +366,7 @@ export class World {
 			.sort((a, b) => a.priority - b.priority || a.manifestIndex - b.manifestIndex);
 
 		for (const { instance } of ordered) {
-			systemOwners.set(instance, this);
+			usedSystems.add(instance);
 			this.systems.push(instance);
 			instance.initialize?.();
 		}

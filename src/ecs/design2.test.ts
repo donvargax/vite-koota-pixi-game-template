@@ -192,9 +192,9 @@ describe("design2 (scoped ECS)", () => {
 		const reusable = new Reusable();
 		const systems = [reusable];
 		const first = World.create(() => systems);
+		first.dispose();
 
 		expect(() => World.create(() => [reusable])).toThrow(/multiple Worlds/);
-		first.dispose();
 		expect(() => World.create(() => systems)).toThrow(/fresh system instance array/);
 
 		class ConstructorSystem extends GameSystem {}
