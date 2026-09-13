@@ -1,6 +1,9 @@
 # Future idea: ECS compiler that makes Design 2/3 as fast as Design 1
 
-Status: documented, not implemented. See chat 2026-09-13.
+Status: **DEFERRED**. Entry criterion is profiler evidence of sustained
+pressure at 10k+ entities (see the frame-time profiling slice in `TODO.md`),
+not elegance. See also `docs/ecs-design.md` for why Design 2 was chosen
+without it. Original note from 2026-09-13 below.
 
 ## Goal
 
