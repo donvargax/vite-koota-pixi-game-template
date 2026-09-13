@@ -1,12 +1,12 @@
 import { createWorld as createKootaWorld, trait } from "koota";
 import type { Entity as KootaEntity, Schema, Trait, World as KootaWorld } from "koota";
+import { createScope, resolve as resolveScoped, type InstanceProvider, type Key } from "./di.ts";
+
+export { type InstanceProvider, type Key } from "./di.ts";
 
 // ---------------------------------------------------------------------------
-// Minimal Aurelia-like DI
+// Temporary compatibility registration
 // ---------------------------------------------------------------------------
-
-// biome-ignore lint/suspicious/noExplicitAny: DI keys are intentionally untyped
-export type Key<T = any> = (new (...args: any[]) => T) | symbol | string;
 
 const singletons = new Map<unknown, unknown>();
 
@@ -19,9 +19,12 @@ export function registerSingleton<T>(key: Key<T>, instanceOrCtor: T | (new () =>
 }
 
 export function resolve<T>(key: Key<T>): T {
-	const existing = singletons.get(key);
-	if (existing !== undefined) return existing as T;
-	throw new Error(`No registration for key ${String(key)}. Did you forget @singleton()?`);
+	try {
+		return resolveScoped(key);
+	} catch (error) {
+		if (singletons.has(key)) return singletons.get(key) as T;
+		throw error;
+	}
 }
 
 export function singleton(): ClassDecorator {
@@ -32,25 +35,40 @@ export function singleton(): ClassDecorator {
 }
 
 // ---------------------------------------------------------------------------
-// Components: plain classes + koota trait backing
+// Components: plain classes + Koota trait backing
 // ---------------------------------------------------------------------------
 
 type Ctor<T = object> = new (...args: never[]) => T;
 
-type FlatDefaults = Record<string, number | bigint | string | boolean | null | undefined>;
+type FlatValue = number | bigint | string | boolean | null | undefined;
+type FlatDefaults = Record<string, FlatValue>;
 
 const componentTraits = new Map<Ctor, Trait>();
 const componentDefaults = new Map<Ctor, FlatDefaults>();
 
-// Design 2 components must be flat primitives (numbers, strings, booleans).
-// This matches koota SoA storage and keeps the door open for the compiler
-// idea in docs/future/ecs-compiler.md. Complex objects stay out for now.
-function defaultsOf(ctor: Ctor): FlatDefaults {
-	try {
-		return { ...(new (ctor as new () => object)() as FlatDefaults) };
-	} catch {
-		return {};
+function isFlatValue(value: unknown): value is FlatValue {
+	return (
+		value === null ||
+		value === undefined ||
+		typeof value === "number" ||
+		typeof value === "bigint" ||
+		typeof value === "string" ||
+		typeof value === "boolean"
+	);
+}
+
+function validateFlatData(ctor: Ctor, values: Record<string, unknown>, source: string): void {
+	for (const [key, value] of Object.entries(values)) {
+		if (!isFlatValue(value)) {
+			throw new Error(`Component ${ctor.name} has unsupported ${source} value for "${key}"`);
+		}
 	}
+}
+
+function defaultsOf(ctor: Ctor): FlatDefaults {
+	const defaults = { ...(new (ctor as new () => object)() as FlatDefaults) };
+	validateFlatData(ctor, defaults, "default");
+	return defaults;
 }
 
 export function component(): ClassDecorator {
@@ -59,7 +77,6 @@ export function component(): ClassDecorator {
 		if (componentTraits.has(ctor)) return;
 		const defaults = defaultsOf(ctor);
 		componentDefaults.set(ctor, defaults);
-		// Empty-shape components become tag traits (cast: tags behave like traits at runtime).
 		componentTraits.set(
 			ctor,
 			(Object.keys(defaults).length > 0 ? trait(defaults as Schema) : trait()) as Trait,
@@ -67,7 +84,7 @@ export function component(): ClassDecorator {
 	};
 }
 
-function traitFor(ctor: Ctor) {
+function traitFor(ctor: Ctor): Trait {
 	const t = componentTraits.get(ctor);
 	if (!t) throw new Error(`Class ${ctor.name} is missing @component`);
 	return t;
@@ -81,12 +98,20 @@ export interface SystemOptions {
 	priority?: number;
 }
 
+export interface WorldOptions {
+	systems?: readonly SystemConstructor[];
+	providers?: readonly InstanceProvider[];
+}
+
+export type SystemConstructor = new () => GameSystem;
+
 interface QueryMeta {
 	types: Ctor[];
 }
 
 const queryMeta = new Map<object, Map<string | symbol, QueryMeta>>();
-const systemRegistry: { ctor: Ctor<GameSystem>; priority: number }[] = [];
+const systemRegistry: { ctor: SystemConstructor; priority: number; manifestIndex: number }[] = [];
+const systemPriorities = new Map<SystemConstructor, number>();
 
 export function query(...types: Ctor[]): PropertyDecorator {
 	// biome-ignore lint/suspicious/noExplicitAny: legacy decorator interop
@@ -102,17 +127,21 @@ export function query(...types: Ctor[]): PropertyDecorator {
 
 export function system(options: SystemOptions = {}): ClassDecorator {
 	return (target: unknown) => {
-		const ctor = target as Ctor<GameSystem>;
-		if (!systemRegistry.some((s) => s.ctor === ctor)) {
-			systemRegistry.push({ ctor, priority: options.priority ?? 0 });
+		const ctor = target as SystemConstructor;
+		const priority = options.priority ?? 0;
+		systemPriorities.set(ctor, priority);
+		if (!systemRegistry.some((entry) => entry.ctor === ctor)) {
+			systemRegistry.push({ ctor, priority, manifestIndex: systemRegistry.length });
 		}
-		if (!singletons.has(ctor)) singletons.set(ctor, new ctor());
 	};
 }
 
 export abstract class GameSystem {
+	// fallow-ignore-next-line unused-class-member
 	initialize?(): void;
+	// fallow-ignore-next-line unused-class-member
 	execute?(_dt: number): void;
+	// fallow-ignore-next-line unused-class-member
 	destroy?(): void;
 }
 
@@ -126,14 +155,19 @@ export class EntityRef {
 		private inner: KootaEntity,
 	) {}
 
+	// fallow-ignore-next-line unused-class-member
 	get id(): number {
-		// Koota entities expose id(); fall back to numeric coercion.
 		const maybe = this.inner as unknown as { id?: () => number };
 		return typeof maybe.id === "function" ? maybe.id() : Number(this.inner);
 	}
 
+	// fallow-ignore-next-line unused-class-member
+	isAlive(): boolean {
+		return this.world.isEntityAlive(this.inner);
+	}
+
 	/** Read-only snapshot copy. Mutating the result does nothing; use set() or Query tuples to write. */
-	get<T extends object>(ctor: Ctor<T>): T {
+	get<T extends object>(ctor: Ctor<T>): T | undefined {
 		return this.world.readComponent(this.inner, ctor);
 	}
 
@@ -141,6 +175,7 @@ export class EntityRef {
 		this.world.writeComponent(this.inner, ctor, patch);
 	}
 
+	// fallow-ignore-next-line unused-class-member
 	has(ctor: Ctor): boolean {
 		return this.world.hasComponent(this.inner, ctor);
 	}
@@ -149,6 +184,7 @@ export class EntityRef {
 		this.inner.destroy();
 	}
 
+	/** Temporary compatibility access for consumers migrating to EntityRef methods. */
 	get raw(): KootaEntity {
 		return this.inner;
 	}
@@ -162,19 +198,13 @@ export class Query<T extends object[]> implements Iterable<{ entity: EntityRef; 
 
 	*[Symbol.iterator](): Iterator<{ entity: EntityRef; comps: T }> {
 		const traits = this.types.map(traitFor);
-		// Koota records are only live *during* an updateEach callback, and
-		// entity.get() returns a snapshot copy, so neither can back a lazy
-		// for...of directly. Instead each comp is a snapshot Proxy that
-		// writes through to entity.set() per field (set merges partials).
-		// Reads are fresh per entity per loop; the future compiler in
-		// docs/future/ecs-compiler.md replaces this with direct SoA access.
 		const entities = this.world.koota.query(...traits);
 		for (const e of entities) {
 			const ref = new EntityRef(this.world, e);
 			const comps = this.types.map((ctor) => {
 				const t = traitFor(ctor);
 				const snap: Record<string | symbol, unknown> = {
-					...(e.get(t) as Record<string, unknown>),
+					...(e.get(t) as Record<string, unknown> | undefined),
 				};
 				return new Proxy(snap, {
 					set(target, prop, value) {
@@ -189,58 +219,121 @@ export class Query<T extends object[]> implements Iterable<{ entity: EntityRef; 
 	}
 
 	get entities(): EntityRef[] {
-		return [...this].map((r) => r.entity);
+		const traits = this.types.map(traitFor);
+		return this.world.koota.query(...traits).map((entity) => new EntityRef(this.world, entity));
 	}
 
+	// fallow-ignore-next-line unused-class-member
 	get count(): number {
-		return this.entities.length;
+		const traits = this.types.map(traitFor);
+		return this.world.koota.query(...traits).length;
 	}
 }
 
 // ---------------------------------------------------------------------------
-// World (4 methods by design)
+// World
 // ---------------------------------------------------------------------------
 
-export const IWorld = Symbol("IWorld");
+export const IWorld: Key<World> = Symbol("IWorld");
 
 export class World {
 	readonly koota: KootaWorld;
+	private readonly scope;
 	private systems: GameSystem[] = [];
-	private initialized = false;
+	private disposed = false;
 
-	constructor() {
-		this.koota = createKootaWorld();
+	constructor(options: WorldOptions = {}) {
+		this.koota = createKootaWorld({});
+		this.scope = createScope(options.providers ?? []);
+		this.scope.provide(IWorld, this);
+
+		const manifest = options.systems ?? systemRegistry;
+		const ordered = manifest
+			.map((entry, manifestIndex) => {
+				const ctor = "ctor" in entry ? entry.ctor : entry;
+				return {
+					ctor,
+					priority: "priority" in entry ? entry.priority : (systemPriorities.get(ctor) ?? 0),
+					manifestIndex: "manifestIndex" in entry ? entry.manifestIndex : manifestIndex,
+				};
+			})
+			.sort((a, b) => a.priority - b.priority || a.manifestIndex - b.manifestIndex);
+
+		try {
+			for (const { ctor } of ordered) {
+				const instance = this.scope.construct(ctor);
+				this.wireQueries(instance, ctor);
+				this.systems.push(instance);
+				instance.initialize?.();
+			}
+		} catch (error) {
+			this.dispose();
+			throw error;
+		}
 	}
 
 	spawn(...instances: object[]): EntityRef {
+		this.ensureNotDisposed();
 		const args = instances.map((inst) => {
+			if (inst === null || typeof inst !== "object") {
+				throw new Error("World.spawn() accepts component instances only");
+			}
 			const ctor = (inst as object).constructor as Ctor;
+			const defaults = componentDefaults.get(ctor);
+			if (!defaults) {
+				traitFor(ctor);
+				throw new Error(`Class ${ctor.name} is missing component defaults`);
+			}
+			const data = { ...(inst as FlatDefaults) };
+			validateFlatData(ctor, data, "spawned");
+			for (const key of Object.keys(data)) {
+				if (!Object.hasOwn(defaults, key)) {
+					throw new Error(`Component ${ctor.name} has unsupported spawned field "${key}"`);
+				}
+			}
 			const t = traitFor(ctor) as unknown as (
 				values?: FlatDefaults,
 			) => Parameters<KootaWorld["spawn"]>[number];
-			const data: FlatDefaults = {};
-			for (const [k, v] of Object.entries(inst)) data[k] = v as FlatDefaults[string];
 			return Object.keys(data).length > 0 ? t(data) : traitFor(ctor);
 		});
 		const e = this.koota.spawn(...args);
 		return new EntityRef(this, e);
 	}
 
+	// fallow-ignore-next-line unused-class-member
 	destroy(ref: EntityRef): void {
 		ref.destroy();
 	}
 
 	query<T extends object[]>(...ctors: Ctor[]): Query<T> {
-		return new Query<T>(this, ctors as Ctor[]);
+		this.ensureNotDisposed();
+		return new Query<T>(this, ctors);
 	}
 
 	update(dt: number): void {
-		this.ensureWired();
-		for (const s of this.systems) s.execute?.(dt);
+		this.ensureNotDisposed();
+		for (const system of this.systems) system.execute?.(dt);
 	}
 
-	readComponent<T extends object>(e: KootaEntity, ctor: Ctor<T>): T {
-		return e.get(traitFor(ctor)) as T;
+	dispose(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		let firstError: unknown;
+		for (const system of [...this.systems].reverse()) {
+			try {
+				system.destroy?.();
+			} catch (error) {
+				firstError ??= error;
+			}
+		}
+		this.systems = [];
+		this.scope.dispose();
+		this.koota.destroy();
+		if (firstError) throw firstError;
+	}
+
+	readComponent<T extends object>(e: KootaEntity, ctor: Ctor<T>): T | undefined {
+		return e.get(traitFor(ctor)) as T | undefined;
 	}
 
 	writeComponent<T extends object>(e: KootaEntity, ctor: Ctor<T>, patch: Partial<T>): void {
@@ -248,28 +341,22 @@ export class World {
 	}
 
 	hasComponent(e: KootaEntity, ctor: Ctor): boolean {
-		return e.has(traitFor(ctor));
+		return this.isEntityAlive(e) && e.has(traitFor(ctor));
 	}
 
-	private ensureWired(): void {
-		if (this.initialized) return;
-		const ordered = [...systemRegistry].sort((a, b) => a.priority - b.priority);
-		this.systems = ordered.map(({ ctor }) => {
-			let instance = singletons.get(ctor) as GameSystem | undefined;
-			if (!instance) {
-				instance = new ctor();
-				singletons.set(ctor, instance);
-			}
-			// Wire @query fields to live Query views.
-			const metas = queryMeta.get(ctor.prototype);
-			if (metas) {
-				for (const [key, meta] of metas) {
-					(instance as Record<string | symbol, unknown>)[key] = new Query(this, meta.types);
-				}
-			}
-			instance.initialize?.();
-			return instance;
-		});
-		this.initialized = true;
+	isEntityAlive(e: KootaEntity): boolean {
+		return !this.disposed && this.koota.has(e);
+	}
+
+	private wireQueries(instance: GameSystem, ctor: SystemConstructor): void {
+		const metas = queryMeta.get(ctor.prototype);
+		if (!metas) return;
+		for (const [key, meta] of metas) {
+			(instance as Record<string | symbol, unknown>)[key] = new Query(this, meta.types);
+		}
+	}
+
+	private ensureNotDisposed(): void {
+		if (this.disposed) throw new Error("Cannot use a disposed World");
 	}
 }

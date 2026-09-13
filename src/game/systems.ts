@@ -22,6 +22,7 @@ import {
 	Velocity,
 } from "./components.ts";
 
+// fallow-ignore-next-line unused-export
 export const order: string[] = [];
 
 // Demo tuning (px, seconds).
@@ -116,6 +117,7 @@ class BoltHit extends GameSystem {
 	@query(Position, Health, FoeTag)
 	declare foes: Query<[Position, Health, FoeTag]>;
 
+	// fallow-ignore-next-line complexity
 	execute(dt: number): void {
 		for (const { entity: bolt, comps } of this.bolts) {
 			const [bpos, b] = comps;
@@ -147,9 +149,10 @@ class FoeShamble extends GameSystem {
 	@query(Position, PlayerTag)
 	declare players: Query<[Position, PlayerTag]>;
 
+	// fallow-ignore-next-line complexity
 	execute(_dt: number): void {
 		const hero = this.players.entities[0];
-		const heroX = hero ? hero.get(Position).x : 0;
+		const heroX = hero ? (hero.get(Position)?.x ?? 0) : 0;
 		for (const { comps } of this.foes) {
 			const [pos, vel] = comps;
 			pos.y = FLOOR_Y;

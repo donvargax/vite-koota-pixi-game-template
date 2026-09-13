@@ -68,7 +68,8 @@ const countEl = document.querySelector("#count")!;
 const pxEl = document.querySelector("#px")!;
 document.querySelector("#hurt")!.addEventListener("click", () => {
 	if (player.raw.isAlive()) {
-		player.set(Health, { value: player.get(Health).value - 25 });
+		const health = player.get(Health);
+		if (health) player.set(Health, { value: health.value - 25 });
 		sfx(SFX.hurt, 0.5);
 	}
 });
@@ -88,7 +89,7 @@ function frame(now: number): void {
 	world.update(dt);
 
 	const alive = player.raw.isAlive();
-	const hp = alive ? player.get(Health).value : 0;
+	const hp = alive ? (player.get(Health)?.value ?? 0) : 0;
 	const foes = world.query(Position, FoeTag).count;
 
 	playHitSounds(hp, foes, alive);
@@ -133,5 +134,5 @@ function maybeReinforce(foes: number, dt: number): void {
 function updateHud(alive: boolean, hp: number, foes: number): void {
 	hpEl.textContent = alive ? String(hp) : "dead";
 	countEl.textContent = String(foes);
-	pxEl.textContent = alive ? player.get(Position).x.toFixed(1) : "—";
+	pxEl.textContent = alive ? (player.get(Position)?.x.toFixed(1) ?? "—") : "—";
 }

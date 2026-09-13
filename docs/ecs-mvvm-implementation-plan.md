@@ -37,16 +37,16 @@ green.
 
 ## Phase record
 
-| Phase                         | Status  | Verification | Deviations   |
-| ----------------------------- | ------- | ------------ | ------------ |
-| 1. Scoped ECS core            | Planned | Not run      | Not recorded |
-| 2. Browser service ports      | Planned | Not run      | Not recorded |
-| 3. Isolated game systems      | Planned | Not run      | Not recorded |
-| 4. Headless GameViewModel     | Planned | Not run      | Not recorded |
-| 5. Presentation composition   | Planned | Not run      | Not recorded |
-| 6. Remove compatibility paths | Planned | Not run      | Not recorded |
-| 7. Quality gates              | Planned | Not run      | Not recorded |
-| 8. Documentation closeout     | Planned | Not run      | Not recorded |
+| Phase                         | Status   | Verification                                                                                                                                                                                                      | Deviations   |
+| ----------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| 1. Scoped ECS core            | Complete | Commands run: `vp test run src/ecs/di.test.ts src/ecs/design2.test.ts` (passed); `vp check` (passed). Failed command: initial `vp check` found formatting and type/lint issues; corrected and rerun successfully. | none         |
+| 2. Browser service ports      | Planned  | Not run                                                                                                                                                                                                           | Not recorded |
+| 3. Isolated game systems      | Planned  | Not run                                                                                                                                                                                                           | Not recorded |
+| 4. Headless GameViewModel     | Planned  | Not run                                                                                                                                                                                                           | Not recorded |
+| 5. Presentation composition   | Planned  | Not run                                                                                                                                                                                                           | Not recorded |
+| 6. Remove compatibility paths | Planned  | Not run                                                                                                                                                                                                           | Not recorded |
+| 7. Quality gates              | Planned  | Not run                                                                                                                                                                                                           | Not recorded |
+| 8. Documentation closeout     | Planned  | Not run                                                                                                                                                                                                           | Not recorded |
 
 ## Phase 1: scoped ECS core
 
