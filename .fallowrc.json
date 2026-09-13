@@ -1,8 +1,4 @@
 {
 	"$schema": "./node_modules/fallow/schema.json",
-	"ignorePatterns": ["public/assets/**"],
-	"ignoreExports": [
-		{ "file": "src/ecs/design2.ts", "exports": ["resolve"] },
-		{ "file": "src/ecs/di.ts", "exports": ["resolve"] }
-	]
+	"ignorePatterns": ["public/assets/**"]
 }

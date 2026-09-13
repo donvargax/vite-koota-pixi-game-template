@@ -1,12 +1,5 @@
 import { createWorld as createKootaWorld, trait } from "koota";
 import type { Entity as KootaEntity, Schema, Trait, World as KootaWorld } from "koota";
-import { createScope, resolve as resolveScoped, type InstanceProvider, type Key } from "./di.ts";
-
-export { type InstanceProvider, type Key } from "./di.ts";
-
-export function resolve<T>(key: Key<T>): T {
-	return resolveScoped(key);
-}
 
 // ---------------------------------------------------------------------------
 // Components: plain classes + Koota trait backing
@@ -72,38 +65,15 @@ export interface SystemOptions {
 	priority?: number;
 }
 
-export interface WorldOptions {
-	systems: readonly SystemConstructor[];
-	providers?: readonly InstanceProvider[];
-}
-
-export type SystemConstructor = new () => GameSystem;
 export type SystemFactory = (world: World) => readonly GameSystem[];
 
-interface QueryMeta {
-	types: Ctor[];
-}
-
-const queryMeta = new Map<object, Map<string | symbol, QueryMeta>>();
-const systemPriorities = new Map<SystemConstructor, number>();
+const systemPriorities = new Map<Function, number>();
 const usedSystems = new WeakSet<GameSystem>();
 const usedSystemArrays = new WeakSet<object>();
 
-export function query(...types: Ctor[]): PropertyDecorator {
-	// biome-ignore lint/suspicious/noExplicitAny: legacy decorator interop
-	return (target: any, propertyKey: string | symbol) => {
-		let perInstance = queryMeta.get(target);
-		if (!perInstance) {
-			perInstance = new Map();
-			queryMeta.set(target, perInstance);
-		}
-		perInstance.set(propertyKey, { types });
-	};
-}
-
 export function system(options: SystemOptions = {}): ClassDecorator {
 	return (target: unknown) => {
-		const ctor = target as SystemConstructor;
+		const ctor = target as Function;
 		const priority = options.priority ?? 0;
 		systemPriorities.set(ctor, priority);
 	};
@@ -184,7 +154,6 @@ export class Query<T extends object[]> implements Iterable<{ entity: EntityRef; 
 		return this.source();
 	}
 
-	// fallow-ignore-next-line unused-class-member
 	get count(): number {
 		return this.source().length;
 	}
@@ -194,16 +163,13 @@ export class Query<T extends object[]> implements Iterable<{ entity: EntityRef; 
 // World
 // ---------------------------------------------------------------------------
 
-export const IWorld: Key<World> = Symbol("IWorld");
-
 export class World {
 	readonly #koota: KootaWorld;
-	private readonly scope;
 	private systems: GameSystem[] = [];
 	private disposed = false;
 
 	static create(factory: SystemFactory): World {
-		const world = new World({ systems: [] });
+		const world = new World();
 
 		try {
 			const result = factory(world) as unknown;
@@ -226,32 +192,8 @@ export class World {
 		}
 	}
 
-	constructor(options: WorldOptions) {
+	private constructor() {
 		this.#koota = createKootaWorld({});
-		this.scope = createScope(options.providers ?? []);
-		this.scope.provide(IWorld, this);
-
-		const manifest = options.systems;
-		const ordered = manifest
-			.map((ctor, manifestIndex) => {
-				return {
-					ctor,
-					priority: systemPriorities.get(ctor) ?? 0,
-					manifestIndex,
-				};
-			})
-			.sort((a, b) => a.priority - b.priority || a.manifestIndex - b.manifestIndex);
-
-		try {
-			for (const { ctor } of ordered) {
-				const instance = this.scope.construct(ctor);
-				this.wireQueries(instance, ctor);
-				this.installInstances([instance]);
-			}
-		} catch (error) {
-			this.cleanup();
-			throw error;
-		}
 	}
 
 	spawn(...instances: object[]): EntityRef {
@@ -313,7 +255,6 @@ export class World {
 			}
 		}
 		this.systems = [];
-		this.scope.dispose();
 		this.#koota.destroy();
 		if (firstError) throw firstError;
 	}
@@ -334,18 +275,6 @@ export class World {
 		return !this.disposed && this.#koota.has(e);
 	}
 
-	private wireQueries(instance: GameSystem, ctor: SystemConstructor): void {
-		const metas = queryMeta.get(ctor.prototype);
-		if (!metas) return;
-		for (const [key, meta] of metas) {
-			const traits = meta.types.map(traitFor);
-			(instance as Record<string | symbol, unknown>)[key] = new Query(() => {
-				this.ensureNotDisposed();
-				return this.#koota.query(...traits).map((entity) => new EntityRef(this, entity));
-			}, meta.types);
-		}
-	}
-
 	private installInstances(instances: readonly GameSystem[]): void {
 		const seenInstances = new Set<GameSystem>();
 		const ordered = instances
@@ -359,7 +288,7 @@ export class World {
 				seenInstances.add(instance);
 				return {
 					instance,
-					priority: systemPriorities.get(instance.constructor as SystemConstructor) ?? 0,
+					priority: systemPriorities.get(instance.constructor) ?? 0,
 					manifestIndex,
 				};
 			})

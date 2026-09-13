@@ -1,14 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import {
-	GameSystem,
-	IWorld,
-	World,
-	component,
-	query,
-	resolve,
-	system,
-	type Query,
-} from "./design2.ts";
+import { GameSystem, World, component, system, type Query } from "./design2.ts";
 
 @component()
 class Position {
@@ -45,8 +36,9 @@ const executionOrder: string[] = [];
 
 @system({ priority: 10 })
 class Movement extends GameSystem {
-	@query(Position, Velocity)
-	declare targets: Query<[Position, Velocity]>;
+	constructor(private readonly targets: Query<[Position, Velocity]>) {
+		super();
+	}
 
 	execute(dt: number): void {
 		executionOrder.push("movement");
@@ -59,8 +51,9 @@ class Movement extends GameSystem {
 
 @system({ priority: 20 })
 class Death extends GameSystem {
-	@query(Health)
-	declare dying: Query<[Health]>;
+	constructor(private readonly dying: Query<[Health]>) {
+		super();
+	}
 
 	execute(): void {
 		executionOrder.push("death");
@@ -205,7 +198,10 @@ describe("design2 (scoped ECS)", () => {
 
 	it("moves entities and removes the dead in deterministic priority order", () => {
 		executionOrder.length = 0;
-		const world = new World({ systems: [Movement, Death] });
+		const world = World.create((created) => [
+			new Movement(created.query(Position, Velocity)),
+			new Death(created.query(Health)),
+		]);
 		const player = world.spawn(new Position(0, 0), new Velocity(10, 0), new Health(100));
 		world.spawn(new Position(0, 0), new Velocity(0, 0), new Health(0));
 
@@ -232,7 +228,7 @@ describe("design2 (scoped ECS)", () => {
 			}
 		}
 
-		const world = new World({ systems: [Second, First] });
+		const world = World.create(() => [new Second(), new First()]);
 		world.update(0);
 
 		expect(calls).toEqual(["second", "first"]);
@@ -249,47 +245,28 @@ describe("design2 (scoped ECS)", () => {
 		}
 		void Undeclared;
 
-		const world = new World({ systems: [] });
+		const world = World.create(() => []);
 		world.update(0);
 
 		expect(calls).toEqual([]);
 		world.dispose();
 	});
 
-	it("resolves the executing World during scoped construction", () => {
-		const owners: World[] = [];
-		@system()
-		class OwnerCapture extends GameSystem {
-			private readonly owner = resolve(IWorld);
-
-			execute(): void {
-				owners.push(this.owner);
-			}
-		}
-
-		const first = new World({ systems: [OwnerCapture] });
-		const second = new World({ systems: [OwnerCapture] });
-		first.update(0);
-		second.update(0);
-
-		expect(owners).toEqual([first, second]);
-		first.dispose();
-		second.dispose();
-	});
-
-	it("keeps systems, queries, and providers isolated between Worlds", () => {
+	it("keeps systems and explicit queries isolated between Worlds", () => {
 		const values: number[] = [];
 		@system()
 		class ReadsWorld extends GameSystem {
-			private readonly owner = resolve(IWorld);
+			constructor(private readonly positions: Query<[Position]>) {
+				super();
+			}
 
 			execute(): void {
-				values.push(this.owner.query(Position).count);
+				values.push(this.positions.count);
 			}
 		}
 
-		const first = new World({ systems: [ReadsWorld] });
-		const second = new World({ systems: [ReadsWorld] });
+		const first = World.create((created) => [new ReadsWorld(created.query(Position))]);
+		const second = World.create((created) => [new ReadsWorld(created.query(Position))]);
 		first.spawn(new Position(1, 2));
 		first.update(0);
 		second.update(0);
@@ -300,7 +277,7 @@ describe("design2 (scoped ECS)", () => {
 	});
 
 	it("reports liveness and absent component reads through the facade", () => {
-		const world = new World({ systems: [] });
+		const world = World.create(() => []);
 		const entity = world.spawn(new Position(1, 2));
 
 		expect(entity.isAlive()).toBe(true);
@@ -324,7 +301,7 @@ describe("design2 (scoped ECS)", () => {
 			}
 		}
 
-		const world = new World({ systems: [First, Second] });
+		const world = World.create(() => [new First(), new Second()]);
 		world.dispose();
 		world.dispose();
 
@@ -359,7 +336,7 @@ describe("design2 (scoped ECS)", () => {
 		}
 		const invalid = new Flat();
 		(invalid as unknown as { value: unknown }).value = { nested: true };
-		const world = new World({ systems: [] });
+		const world = World.create(() => []);
 
 		expect(() => world.spawn(invalid)).toThrow(/unsupported spawned value/);
 		world.dispose();
