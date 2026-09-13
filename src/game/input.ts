@@ -1,6 +1,4 @@
 import type { InputPort } from "./contracts.ts";
-import { IInput } from "./contracts.ts";
-import { registerSingleton } from "../ecs/design2.ts";
 
 type InputTarget = Pick<Window, "addEventListener" | "removeEventListener">;
 
@@ -70,25 +68,3 @@ export class KeyboardInput implements InputPort {
 		return this.down.has(code);
 	}
 }
-
-let defaultInput: KeyboardInput | undefined;
-
-function getDefaultInput(): KeyboardInput {
-	return (defaultInput ??= new KeyboardInput());
-}
-
-// Temporary compatibility registration for the pre-ViewModel composition root.
-if (typeof window !== "undefined") registerSingleton(IInput, getDefaultInput());
-
-// Temporary compatibility wrappers for the pre-port composition root.
-// fallow-ignore-next-line unused-export
-export function bindInput(): void {
-	getDefaultInput().bind();
-}
-
-// fallow-ignore-next-line unused-export
-export const moveAxis = (): number => getDefaultInput().moveAxis();
-// fallow-ignore-next-line unused-export
-export const wantsJump = (): boolean => getDefaultInput().consumeJumpPressed();
-// fallow-ignore-next-line unused-export
-export const wantsShoot = (): boolean => getDefaultInput().isShootHeld();

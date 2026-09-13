@@ -142,4 +142,22 @@ describe("GameViewModel", () => {
 		expect(() => model.tick(0.1)).toThrow(/disposed GameViewModel/);
 		expect(() => model.spawnFoe()).toThrow(/disposed GameViewModel/);
 	});
+
+	it("keeps World and service state isolated between ViewModels", () => {
+		const first = createModel([], []);
+		const second = createModel([], []);
+		first.model.start();
+		second.model.start();
+		first.input.axis = 1;
+
+		first.model.tick(0.1);
+		second.model.tick(0.1);
+
+		expect(first.model.getHudProjection().playerX).toBe(15);
+		expect(second.model.getHudProjection().playerX).toBe(0);
+		first.model.dispose();
+		second.model.tick(0.1);
+		expect(second.model.getHudProjection().playerX).toBe(0);
+		second.model.dispose();
+	});
 });

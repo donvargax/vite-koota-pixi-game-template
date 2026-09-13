@@ -183,6 +183,22 @@ describe("game systems", () => {
 		secondWorld.dispose();
 	});
 
+	it("keeps a surviving World active after another World is disposed", () => {
+		const first = providers();
+		const second = providers();
+		first.input.shootHeld = true;
+		second.input.shootHeld = true;
+		const firstWorld = new World({ systems: [Shooting], providers: first.providers });
+		const secondWorld = new World({ systems: [Shooting], providers: second.providers });
+		firstWorld.dispose();
+		secondWorld.spawn(new Position(), new Gun(), new PlayerTag());
+
+		secondWorld.update(0.01);
+
+		expect(secondWorld.query(Projectile).count).toBe(1);
+		secondWorld.dispose();
+	});
+
 	it("runs the complete manifest with fake ports", () => {
 		const { input, audio, providers: scopedProviders } = providers();
 		input.shootHeld = true;

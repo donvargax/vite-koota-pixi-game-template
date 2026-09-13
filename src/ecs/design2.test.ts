@@ -107,6 +107,23 @@ describe("design2 (scoped ECS)", () => {
 		world.dispose();
 	});
 
+	it("does not discover decorated systems without an explicit manifest", () => {
+		const calls: string[] = [];
+		@system()
+		class Undeclared extends GameSystem {
+			execute(): void {
+				calls.push("undeclared");
+			}
+		}
+		void Undeclared;
+
+		const world = new World({ systems: [] });
+		world.update(0);
+
+		expect(calls).toEqual([]);
+		world.dispose();
+	});
+
 	it("resolves the executing World during scoped construction", () => {
 		const owners: World[] = [];
 		@system()
@@ -181,6 +198,8 @@ describe("design2 (scoped ECS)", () => {
 
 		expect(destroyed).toEqual(["second", "first"]);
 		expect(() => world.update(0)).toThrow(/disposed World/);
+		expect(() => world.spawn(new Position())).toThrow(/disposed World/);
+		expect(() => world.query(Position)).toThrow(/disposed World/);
 	});
 
 	it("rejects unsupported component defaults, constructors, and spawned values", () => {

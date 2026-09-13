@@ -1,6 +1,4 @@
 import type { AudioPort } from "./contracts.ts";
-import { IAudio } from "./contracts.ts";
-import { registerSingleton } from "../ecs/design2.ts";
 
 type AudioTarget = Pick<Window, "addEventListener" | "removeEventListener">;
 type AudioElement = Pick<HTMLAudioElement, "play" | "volume">;
@@ -49,24 +47,4 @@ export class HtmlAudio implements AudioPort {
 		this.target.removeEventListener("keydown", this.onGesture);
 		this.bound = false;
 	}
-}
-
-let defaultAudio: HtmlAudio | undefined;
-
-function getDefaultAudio(): HtmlAudio {
-	return (defaultAudio ??= new HtmlAudio());
-}
-
-// Temporary compatibility registration for the pre-ViewModel composition root.
-if (typeof window !== "undefined") registerSingleton(IAudio, getDefaultAudio());
-
-// Temporary compatibility wrappers for the pre-port composition root.
-// fallow-ignore-next-line unused-export
-export function unlockAudio(): void {
-	getDefaultAudio().bind();
-}
-
-// fallow-ignore-next-line unused-export
-export function sfx(url: string, volume = 0.5): void {
-	getDefaultAudio().play(url, volume);
 }

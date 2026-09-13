@@ -4,35 +4,8 @@ import { createScope, resolve as resolveScoped, type InstanceProvider, type Key 
 
 export { type InstanceProvider, type Key } from "./di.ts";
 
-// ---------------------------------------------------------------------------
-// Temporary compatibility registration
-// ---------------------------------------------------------------------------
-
-const singletons = new Map<unknown, unknown>();
-
-export function registerSingleton<T>(key: Key<T>, instanceOrCtor: T | (new () => T)): void {
-	if (typeof instanceOrCtor === "function" && instanceOrCtor.prototype) {
-		singletons.set(key, new (instanceOrCtor as new () => T)());
-	} else {
-		singletons.set(key, instanceOrCtor);
-	}
-}
-
 export function resolve<T>(key: Key<T>): T {
-	try {
-		return resolveScoped(key);
-	} catch (error) {
-		if (singletons.has(key)) return singletons.get(key) as T;
-		throw error;
-	}
-}
-
-// fallow-ignore-next-line unused-export
-export function singleton(): ClassDecorator {
-	return (target: unknown) => {
-		const ctor = target as new () => unknown;
-		if (!singletons.has(ctor)) singletons.set(ctor, new ctor());
-	};
+	return resolveScoped(key);
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +73,7 @@ export interface SystemOptions {
 }
 
 export interface WorldOptions {
-	systems?: readonly SystemConstructor[];
+	systems: readonly SystemConstructor[];
 	providers?: readonly InstanceProvider[];
 }
 
@@ -111,7 +84,6 @@ interface QueryMeta {
 }
 
 const queryMeta = new Map<object, Map<string | symbol, QueryMeta>>();
-const systemRegistry: { ctor: SystemConstructor; priority: number; manifestIndex: number }[] = [];
 const systemPriorities = new Map<SystemConstructor, number>();
 
 export function query(...types: Ctor[]): PropertyDecorator {
@@ -131,9 +103,6 @@ export function system(options: SystemOptions = {}): ClassDecorator {
 		const ctor = target as SystemConstructor;
 		const priority = options.priority ?? 0;
 		systemPriorities.set(ctor, priority);
-		if (!systemRegistry.some((entry) => entry.ctor === ctor)) {
-			systemRegistry.push({ ctor, priority, manifestIndex: systemRegistry.length });
-		}
 	};
 }
 
@@ -183,34 +152,24 @@ export class EntityRef {
 	destroy(): void {
 		this.inner.destroy();
 	}
-
-	/** Temporary compatibility access for consumers migrating to EntityRef methods. */
-	// fallow-ignore-next-line unused-class-member
-	get raw(): KootaEntity {
-		return this.inner;
-	}
 }
 
 export class Query<T extends object[]> implements Iterable<{ entity: EntityRef; comps: T }> {
 	constructor(
-		private world: World,
+		private readonly source: () => EntityRef[],
 		private types: Ctor[],
 	) {}
 
 	*[Symbol.iterator](): Iterator<{ entity: EntityRef; comps: T }> {
-		const traits = this.types.map(traitFor);
-		const entities = this.world.koota.query(...traits);
-		for (const e of entities) {
-			const ref = new EntityRef(this.world, e);
+		for (const ref of this.source()) {
 			const comps = this.types.map((ctor) => {
-				const t = traitFor(ctor);
 				const snap: Record<string | symbol, unknown> = {
-					...(e.get(t) as Record<string, unknown> | undefined),
+					...(ref.get(ctor) as Record<string, unknown> | undefined),
 				};
 				return new Proxy(snap, {
 					set(target, prop, value) {
 						target[prop] = value;
-						e.set(t, { [prop]: value } as Record<string, unknown>);
+						ref.set(ctor, { [prop]: value } as Record<string, unknown>);
 						return true;
 					},
 				});
@@ -220,14 +179,12 @@ export class Query<T extends object[]> implements Iterable<{ entity: EntityRef; 
 	}
 
 	get entities(): EntityRef[] {
-		const traits = this.types.map(traitFor);
-		return this.world.koota.query(...traits).map((entity) => new EntityRef(this.world, entity));
+		return this.source();
 	}
 
 	// fallow-ignore-next-line unused-class-member
 	get count(): number {
-		const traits = this.types.map(traitFor);
-		return this.world.koota.query(...traits).length;
+		return this.source().length;
 	}
 }
 
@@ -238,24 +195,23 @@ export class Query<T extends object[]> implements Iterable<{ entity: EntityRef; 
 export const IWorld: Key<World> = Symbol("IWorld");
 
 export class World {
-	readonly koota: KootaWorld;
+	readonly #koota: KootaWorld;
 	private readonly scope;
 	private systems: GameSystem[] = [];
 	private disposed = false;
 
-	constructor(options: WorldOptions = {}) {
-		this.koota = createKootaWorld({});
+	constructor(options: WorldOptions) {
+		this.#koota = createKootaWorld({});
 		this.scope = createScope(options.providers ?? []);
 		this.scope.provide(IWorld, this);
 
-		const manifest = options.systems ?? systemRegistry;
+		const manifest = options.systems;
 		const ordered = manifest
-			.map((entry, manifestIndex) => {
-				const ctor = "ctor" in entry ? entry.ctor : entry;
+			.map((ctor, manifestIndex) => {
 				return {
 					ctor,
-					priority: "priority" in entry ? entry.priority : (systemPriorities.get(ctor) ?? 0),
-					manifestIndex: "manifestIndex" in entry ? entry.manifestIndex : manifestIndex,
+					priority: systemPriorities.get(ctor) ?? 0,
+					manifestIndex,
 				};
 			})
 			.sort((a, b) => a.priority - b.priority || a.manifestIndex - b.manifestIndex);
@@ -297,7 +253,7 @@ export class World {
 			) => Parameters<KootaWorld["spawn"]>[number];
 			return Object.keys(data).length > 0 ? t(data) : traitFor(ctor);
 		});
-		const e = this.koota.spawn(...args);
+		const e = this.#koota.spawn(...args);
 		return new EntityRef(this, e);
 	}
 
@@ -308,7 +264,11 @@ export class World {
 
 	query<T extends object[]>(...ctors: Ctor[]): Query<T> {
 		this.ensureNotDisposed();
-		return new Query<T>(this, ctors);
+		const traits = ctors.map(traitFor);
+		return new Query<T>(() => {
+			this.ensureNotDisposed();
+			return this.#koota.query(...traits).map((entity) => new EntityRef(this, entity));
+		}, ctors);
 	}
 
 	update(dt: number): void {
@@ -329,7 +289,7 @@ export class World {
 		}
 		this.systems = [];
 		this.scope.dispose();
-		this.koota.destroy();
+		this.#koota.destroy();
 		if (firstError) throw firstError;
 	}
 
@@ -346,14 +306,18 @@ export class World {
 	}
 
 	isEntityAlive(e: KootaEntity): boolean {
-		return !this.disposed && this.koota.has(e);
+		return !this.disposed && this.#koota.has(e);
 	}
 
 	private wireQueries(instance: GameSystem, ctor: SystemConstructor): void {
 		const metas = queryMeta.get(ctor.prototype);
 		if (!metas) return;
 		for (const [key, meta] of metas) {
-			(instance as Record<string | symbol, unknown>)[key] = new Query(this, meta.types);
+			const traits = meta.types.map(traitFor);
+			(instance as Record<string | symbol, unknown>)[key] = new Query(() => {
+				this.ensureNotDisposed();
+				return this.#koota.query(...traits).map((entity) => new EntityRef(this, entity));
+			}, meta.types);
 		}
 	}
 
