@@ -167,6 +167,22 @@ export function createGameSystems(world: World, input: InputPort, audio: AudioPo
 The World receives system instances from the factory. Importing a system module
 does not construct an instance or make it run.
 
+## What adding a feature looks like
+
+For a dash ability:
+
+1. Add flat model state such as `DashState` to `components.ts`.
+2. Add dash input to `InputPort` and both its keyboard and fake adapters.
+3. Add a focused `DashSystem` and tests using a World with only its required
+   systems.
+4. Add `DashSystem` to `createGameSystems` at the intended priority.
+5. Add visual dash state to `RenderEntityProjection` only if Pixi needs it.
+6. Add a ViewModel command only if the dash can also be initiated by a menu,
+   replay, AI driver, or another application-level caller.
+
+The feature does not require changes to Koota integration, Pixi ownership, or
+the browser composition model.
+
 ## A World is an isolated model instance
 
 `World.create` creates the ECS backend first and passes that exact World to the
