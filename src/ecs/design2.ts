@@ -27,6 +27,7 @@ export function resolve<T>(key: Key<T>): T {
 	}
 }
 
+// fallow-ignore-next-line unused-export
 export function singleton(): ClassDecorator {
 	return (target: unknown) => {
 		const ctor = target as new () => unknown;

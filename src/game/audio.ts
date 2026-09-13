@@ -1,4 +1,6 @@
 import type { AudioPort } from "./contracts.ts";
+import { IAudio } from "./contracts.ts";
+import { registerSingleton } from "../ecs/design2.ts";
 
 type AudioTarget = Pick<Window, "addEventListener" | "removeEventListener">;
 type AudioElement = Pick<HTMLAudioElement, "play" | "volume">;
@@ -54,6 +56,9 @@ let defaultAudio: HtmlAudio | undefined;
 function getDefaultAudio(): HtmlAudio {
 	return (defaultAudio ??= new HtmlAudio());
 }
+
+// Temporary compatibility registration for the pre-ViewModel composition root.
+if (typeof window !== "undefined") registerSingleton(IAudio, getDefaultAudio());
 
 // Temporary compatibility wrappers for the pre-port composition root.
 export function unlockAudio(): void {
