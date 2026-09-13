@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
+import { World } from "../ecs/design2.ts";
 import type { AudioPort, InputPort, RandomPort } from "./contracts.ts";
 import { SFX } from "./sound-assets.ts";
 import { GameViewModel } from "./game-view-model.ts";
+import { createGameSystems } from "./systems.ts";
 
 class FakeInput implements InputPort {
 	axis = 0;
@@ -46,21 +48,23 @@ function createModel(
 	model: GameViewModel;
 	audio: FakeAudio;
 	input: FakeInput;
+	world: World;
 } {
 	const input = new FakeInput();
 	const audio = new FakeAudio();
+	const world = World.create((created) => createGameSystems(created, input, audio));
 	const model = new GameViewModel({
-		input,
+		world,
 		audio,
 		random: new FakeRandom(values),
 		initialFoePositions,
 	});
-	return { model, audio, input };
+	return { model, audio, input, world };
 }
 
 describe("GameViewModel", () => {
 	it("starts idempotently with the player and initial foes", () => {
-		const { model } = createModel();
+		const { model, world } = createModel();
 
 		model.start();
 		model.start();
@@ -72,10 +76,11 @@ describe("GameViewModel", () => {
 		});
 		expect(model.getRenderProjection().entities).toHaveLength(4);
 		model.dispose();
+		world.dispose();
 	});
 
 	it("damages the player and places spawned foes through the random port", () => {
-		const { model, audio } = createModel([0.25]);
+		const { model, audio, world } = createModel([0.25]);
 		model.start();
 
 		model.damagePlayer(25);
@@ -86,10 +91,11 @@ describe("GameViewModel", () => {
 		expect(model.getRenderProjection().entities.at(-1)).toMatchObject({ kind: "zombie", x: -80 });
 		expect(audio.played).toEqual([{ sound: SFX.hurt, volume: 0.5 }]);
 		model.dispose();
+		world.dispose();
 	});
 
 	it("ticks the World and exposes immutable HUD and render projections", () => {
-		const { model, input } = createModel();
+		const { model, input, world } = createModel();
 		model.start();
 		input.axis = 1;
 
@@ -104,10 +110,11 @@ describe("GameViewModel", () => {
 		expect(Object.isFrozen(render.entities)).toBe(true);
 		expect(Object.isFrozen(render.entities[0])).toBe(true);
 		model.dispose();
+		world.dispose();
 	});
 
 	it("respawns after the delayed death timer and records application sounds", () => {
-		const { model, audio } = createModel();
+		const { model, audio, world } = createModel();
 		model.start();
 		model.damagePlayer(100);
 		model.tick(0.1);
@@ -118,10 +125,11 @@ describe("GameViewModel", () => {
 		expect(model.getHudProjection().playerHealth).toBe(100);
 		expect(audio.played.at(-1)).toEqual({ sound: SFX.respawn, volume: 0.5 });
 		model.dispose();
+		world.dispose();
 	});
 
 	it("reinforces an empty arena only after the delayed timer", () => {
-		const { model, audio } = createModel([], []);
+		const { model, audio, world } = createModel([], []);
 		model.start();
 
 		model.tick(3);
@@ -131,16 +139,18 @@ describe("GameViewModel", () => {
 		expect(model.getHudProjection().foeCount).toBe(2);
 		expect(audio.played.at(-1)).toEqual({ sound: SFX.coin, volume: 0.5 });
 		model.dispose();
+		world.dispose();
 	});
 
 	it("rejects use before start and after idempotent disposal", () => {
-		const { model } = createModel();
+		const { model, world } = createModel();
 		expect(() => model.tick(0.1)).toThrow(/must be started/);
 		model.start();
 		model.dispose();
 		model.dispose();
 		expect(() => model.tick(0.1)).toThrow(/disposed GameViewModel/);
 		expect(() => model.spawnFoe()).toThrow(/disposed GameViewModel/);
+		world.dispose();
 	});
 
 	it("keeps World and service state isolated between ViewModels", () => {
@@ -163,8 +173,11 @@ describe("GameViewModel", () => {
 			second.model.getRenderProjection().entities.some((entity) => entity.kind === "bolt"),
 		).toBe(false);
 		first.model.dispose();
+		expect(() => first.world.update(0.1)).not.toThrow();
 		second.model.tick(0.1);
 		expect(second.model.getHudProjection().playerX).toBe(0);
+		first.world.dispose();
 		second.model.dispose();
+		second.world.dispose();
 	});
 });

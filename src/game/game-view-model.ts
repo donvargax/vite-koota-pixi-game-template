@@ -1,7 +1,6 @@
 import { EntityRef, World } from "../ecs/design2.ts";
 import { FoeTag, Gun, Health, PlayerTag, Position, Sprite, Velocity } from "./components.ts";
-import type { AudioPort, InputPort, RandomPort } from "./contracts.ts";
-import { createGameSystems } from "./systems.ts";
+import type { AudioPort, RandomPort } from "./contracts.ts";
 import { SFX } from "./sound-assets.ts";
 
 const INITIAL_FOE_POSITIONS = [-140, 120, 190] as const;
@@ -11,7 +10,7 @@ const RESPAWN_DELAY = 2;
 const REINFORCEMENT_DELAY = 3;
 
 export interface GameViewModelOptions {
-	readonly input: InputPort;
+	readonly world: World;
 	readonly audio: AudioPort;
 	readonly random: RandomPort;
 	readonly initialFoePositions?: readonly number[];
@@ -54,7 +53,7 @@ export class GameViewModel {
 	constructor(private readonly options: GameViewModelOptions) {
 		this.initialFoePositions = options.initialFoePositions ?? INITIAL_FOE_POSITIONS;
 		this.previousFoeCount = this.initialFoePositions.length;
-		this.world = World.create((world) => createGameSystems(world, options.input, options.audio));
+		this.world = options.world;
 	}
 
 	start(): void {
@@ -133,7 +132,9 @@ export class GameViewModel {
 	dispose(): void {
 		if (this.disposed) return;
 		this.disposed = true;
-		this.world.dispose();
+		this.player = undefined;
+		this.deadTimer = 0;
+		this.emptyTimer = 0;
 	}
 
 	private spawnPlayer(): EntityRef {
