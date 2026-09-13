@@ -2,9 +2,11 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
 	staged: {
-		// Code and text only: never run format/lint over vendored binaries
-		// (public/assets) or other binary blobs.
-		"*.{ts,tsx,js,jsx,json,md}": "vp check --fix",
+		// Our sources only. Never run format/lint over vendored content:
+		// public/assets contains third-party files with misleading
+		// extensions (e.g. Tiled .tsx which is XML, not TypeScript).
+		"{src,e2e}/**/*.{ts,tsx,js,jsx,json}": "vp check --fix",
+		"*.{json,md}": "vp check --fix",
 	},
 	test: {
 		// Playwright specs live in e2e/ and run via `pnpm e2e`, not vitest.
