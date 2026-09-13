@@ -13,12 +13,13 @@ renderer-agnostic, spawn/destroy/query/update for a 2D metroidvania).
 order. ~120 lines, trivially testable, `O(n)` queries, no scheduling or
 events. Closest to `mreinstein/ecs` / `bitECS` philosophy.
 
-## Design 2 — Aurelia-style (decorators + DI) ✅ chosen
+## Design 2 — Aurelia-style (decorators + scoped DI) ✅ chosen
 
-`@component` classes, `@system({ priority })` singletons,
-`@query(...Types)` fields, `resolve()` for everything, 4-method `World`
-(`spawn/destroy/query/update`). Backed by koota traits; query tuples are
-write-through proxies over snapshot copies.
+`@component` classes, `@system({ priority })` metadata,
+`@query(...Types)` fields, construction-time `resolve()`, and a World that
+accepts an explicit system manifest and service providers. Each World constructs
+its own systems and query objects. Koota traits and handles stay behind the ECS
+facade; query tuples are write-through proxies over snapshot copies.
 
 ## Design 3 — Full kit (schema + scheduling + saves)
 
@@ -32,7 +33,7 @@ to `becsy` + `bitECS` serialization.
 
 - **Simplicity**: 1 (functions) < 2 (2 decorators) < 3 (schema + DAG).
 - **Depth** (small interface hiding real machinery): 2 wins for its size —
-  4 methods hide DI, discovery, and query caching.
+  the facade hides the backend, DI, query wiring, and lifecycle.
 - **Biggest divergence**: where queries live — call-site args (1), wired
   `@query` fields (2), query algebra (3) — and the time model: single `dt`
   (1, 2) vs split fixed/variable + `alpha` (3).
@@ -41,15 +42,28 @@ to `becsy` + `bitECS` serialization.
 
 ## Why Design 2
 
-1. Reads like the framework the team knows (Aurelia), writes like two
-   decorators and a loop — onboarding cost near zero.
-2. Explicit queries keep the door open: the facade can swap koota for
-   archetypes/SoA later without changing game code, and the deferred
-   compiler (`docs/future/ecs-compiler.md`) targets exactly this syntax.
+1. Reads like the framework the team knows (Aurelia), while explicit manifests
+   and scopes keep construction and ownership inspectable.
+2. Explicit queries keep the door open: the facade can swap Koota for
+   archetypes or SoA later without changing game code, and the deferred
+   compiler (`docs/future/ecs-compiler.md`) targets this syntax.
 3. Design 1 saves nothing we need yet (entity counts are in the hundreds)
-   and pushes ordering/lifecycle onto every caller. Design 3 is the right
-   _second_ system — its pieces (prefabs, snapshots, fixed timestep) are
-   sliced in `TODO.md` instead of bought up front.
+   and pushes ordering and lifecycle onto every caller. Design 3 is the right
+   _second_ system; its pieces are sliced in `TODO.md` instead of bought up
+   front.
+
+## Implemented boundary
+
+- Production exports one ordered `gameSystems` manifest. Importing a system
+  module does not register an instance or make it run.
+- A `World` creates one Koota backend, dependency scope, and system instance
+  set. Priority ties preserve manifest order.
+- `initialize()` runs during construction, `execute(dt)` runs during updates,
+  and `dispose()` invokes `destroy()` once in reverse schedule order.
+- `EntityRef`, `Query`, and component declarations are the game-facing API.
+  Koota is imported only by `src/ecs/design2.ts`.
+- The backend can therefore change without exposing Koota entities or query
+  internals to systems, the ViewModel, views, or tests.
 
 ## Deferred, not discarded
 
