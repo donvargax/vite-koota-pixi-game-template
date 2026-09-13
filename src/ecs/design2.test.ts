@@ -71,6 +71,138 @@ class Death extends GameSystem {
 }
 
 describe("design2 (scoped ECS)", () => {
+	it("creates a World before composing system instances and queries", () => {
+		let factoryWorld: World | undefined;
+		const positions: number[] = [];
+
+		@system()
+		class ReadsPositions extends GameSystem {
+			constructor(private readonly targets: Query<[Position]>) {
+				super();
+			}
+
+			execute(): void {
+				for (const { comps } of this.targets) positions.push(comps[0].x);
+			}
+		}
+
+		const world = World.create((created) => {
+			factoryWorld = created;
+			return [new ReadsPositions(created.query(Position))];
+		});
+		world.spawn(new Position(7, 0));
+		world.update(0);
+
+		expect(factoryWorld).toBe(world);
+		expect(positions).toEqual([7]);
+		world.dispose();
+	});
+
+	it("sorts factory instances and tears them down in reverse order", () => {
+		const calls: string[] = [];
+
+		@system({ priority: 20 })
+		class Second extends GameSystem {
+			initialize(): void {
+				calls.push("second-init");
+			}
+
+			execute(): void {
+				calls.push("second-execute");
+			}
+
+			destroy(): void {
+				calls.push("second-destroy");
+			}
+		}
+
+		@system({ priority: 10 })
+		class First extends GameSystem {
+			initialize(): void {
+				calls.push("first-init");
+			}
+
+			execute(): void {
+				calls.push("first-execute");
+			}
+
+			destroy(): void {
+				calls.push("first-destroy");
+			}
+		}
+
+		const world = World.create(() => [new Second(), new First()]);
+		world.update(0);
+		world.dispose();
+
+		expect(calls).toEqual([
+			"first-init",
+			"second-init",
+			"first-execute",
+			"second-execute",
+			"second-destroy",
+			"first-destroy",
+		]);
+	});
+
+	it("cleans up installed instances while preserving an initialization failure", () => {
+		const destroyed: string[] = [];
+		const failure = new Error("initialization failed");
+
+		class First extends GameSystem {
+			destroy(): void {
+				destroyed.push("first");
+			}
+		}
+
+		class Failing extends GameSystem {
+			initialize(): void {
+				throw failure;
+			}
+
+			destroy(): void {
+				destroyed.push("failing");
+			}
+		}
+
+		expect(() => World.create(() => [new First(), new Failing()])).toThrow(failure);
+		expect(destroyed).toEqual(["failing", "first"]);
+	});
+
+	it("cleans up when factory query creation fails", () => {
+		class Unregistered {}
+		let createdWorld: World | undefined;
+
+		expect(() =>
+			World.create((world) => {
+				createdWorld = world;
+				world.query(Unregistered);
+				return [];
+			}),
+		).toThrow(/missing @component/);
+
+		expect(() => createdWorld?.query(Position)).toThrow(/disposed World/);
+	});
+
+	it("rejects asynchronous factories, constructors, reused arrays, and instances", () => {
+		const asyncFactory = (async () => []) as unknown as (world: World) => readonly GameSystem[];
+		expect(() => World.create(asyncFactory)).toThrow(/synchronous/);
+
+		class Reusable extends GameSystem {}
+		const reusable = new Reusable();
+		const systems = [reusable];
+		const first = World.create(() => systems);
+
+		expect(() => World.create(() => [reusable])).toThrow(/multiple Worlds/);
+		first.dispose();
+		expect(() => World.create(() => systems)).toThrow(/fresh system instance array/);
+
+		class ConstructorSystem extends GameSystem {}
+		expect(() => World.create(() => [ConstructorSystem as unknown as GameSystem])).toThrow(
+			/GameSystem instances/,
+		);
+	});
+
 	it("moves entities and removes the dead in deterministic priority order", () => {
 		executionOrder.length = 0;
 		const world = new World({ systems: [Movement, Death] });

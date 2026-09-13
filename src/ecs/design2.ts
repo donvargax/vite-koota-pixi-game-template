@@ -78,6 +78,7 @@ export interface WorldOptions {
 }
 
 export type SystemConstructor = new () => GameSystem;
+export type SystemFactory = (world: World) => readonly GameSystem[];
 
 interface QueryMeta {
 	types: Ctor[];
@@ -85,6 +86,8 @@ interface QueryMeta {
 
 const queryMeta = new Map<object, Map<string | symbol, QueryMeta>>();
 const systemPriorities = new Map<SystemConstructor, number>();
+const systemOwners = new WeakMap<GameSystem, World>();
+const usedSystemArrays = new WeakSet<object>();
 
 export function query(...types: Ctor[]): PropertyDecorator {
 	// biome-ignore lint/suspicious/noExplicitAny: legacy decorator interop
@@ -200,6 +203,30 @@ export class World {
 	private systems: GameSystem[] = [];
 	private disposed = false;
 
+	static create(factory: SystemFactory): World {
+		const world = new World({ systems: [] });
+
+		try {
+			const result = factory(world) as unknown;
+			if (isPromiseLike(result)) {
+				void Promise.resolve(result).catch(() => undefined);
+				throw new Error("World.create() requires a synchronous system factory");
+			}
+			if (!Array.isArray(result)) {
+				throw new Error("World.create() factory must return a system instance array");
+			}
+			if (usedSystemArrays.has(result)) {
+				throw new Error("World.create() requires a fresh system instance array");
+			}
+			usedSystemArrays.add(result);
+			world.installInstances(result);
+			return world;
+		} catch (error) {
+			world.cleanup();
+			throw error;
+		}
+	}
+
 	constructor(options: WorldOptions) {
 		this.#koota = createKootaWorld({});
 		this.scope = createScope(options.providers ?? []);
@@ -220,11 +247,10 @@ export class World {
 			for (const { ctor } of ordered) {
 				const instance = this.scope.construct(ctor);
 				this.wireQueries(instance, ctor);
-				this.systems.push(instance);
-				instance.initialize?.();
+				this.installInstances([instance]);
 			}
 		} catch (error) {
-			this.dispose();
+			this.cleanup();
 			throw error;
 		}
 	}
@@ -286,6 +312,7 @@ export class World {
 			} catch (error) {
 				firstError ??= error;
 			}
+			if (systemOwners.get(system) === this) systemOwners.delete(system);
 		}
 		this.systems = [];
 		this.scope.dispose();
@@ -321,7 +348,51 @@ export class World {
 		}
 	}
 
+	private installInstances(instances: readonly GameSystem[]): void {
+		const seenInstances = new Set<GameSystem>();
+		const ordered = instances
+			.map((instance, manifestIndex) => {
+				if (!(instance instanceof GameSystem)) {
+					throw new Error("World.create() factory must return GameSystem instances");
+				}
+				if (seenInstances.has(instance) || systemOwners.has(instance)) {
+					throw new Error("A GameSystem instance cannot be installed in multiple Worlds");
+				}
+				seenInstances.add(instance);
+				return {
+					instance,
+					priority: systemPriorities.get(instance.constructor as SystemConstructor) ?? 0,
+					manifestIndex,
+				};
+			})
+			.sort((a, b) => a.priority - b.priority || a.manifestIndex - b.manifestIndex);
+
+		for (const { instance } of ordered) {
+			systemOwners.set(instance, this);
+			this.systems.push(instance);
+			instance.initialize?.();
+		}
+	}
+
+	private cleanup(): void {
+		if (this.disposed) return;
+		try {
+			this.dispose();
+		} catch {
+			// Preserve the factory or initialization error that caused cleanup.
+		}
+	}
+
 	private ensureNotDisposed(): void {
 		if (this.disposed) throw new Error("Cannot use a disposed World");
 	}
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"then" in value &&
+		typeof value.then === "function"
+	);
 }
