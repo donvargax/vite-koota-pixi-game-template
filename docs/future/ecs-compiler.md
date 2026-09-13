@@ -7,9 +7,10 @@ without it. This remains a design note, not an implementation commitment.
 
 ## Goal
 
-Keep source ergonomics of Design 2 (Aurelia-style decorators + `resolve()` DI)
-and Design 3 (schema + scheduling + snapshots), but compile hot paths down to
-Design 1 performance (SoA TypedArrays, cached queries, zero alloc in loop).
+Keep the source ergonomics of Design 2 (Aurelia-inspired decorators and
+constructor-visible dependencies) and Design 3 (schema + scheduling + snapshots),
+but compile hot paths down to Design 1 performance (SoA TypedArrays, cached
+queries, zero alloc in loop).
 
 Models: Svelte (framework disappears) for full codegen, React Compiler
 (auto-memoize queries) for cheap wins.
@@ -22,15 +23,15 @@ Models: Svelte (framework disappears) for full codegen, React Compiler
 
 ## Source -> prod mapping (proposed)
 
-| Source (you write)                         | Prod (compiler emits)                                            |
-| ------------------------------------------ | ---------------------------------------------------------------- |
-| `@component class Position { x = 0 }`      | `Position = { x: Float32Array(CAP), y: ... }` + schema for saves |
-| `@query(Position, Velocity) targets`       | hoisted query cache, with the same facade query shape            |
-| `for (const { comps: [p, v] } of targets)` | `for (i...) { eid=dense[i]; px[eid]... }`                        |
-| `world.spawn(new Position(x))`             | `eid=alloc(); px[eid]=x` (memcpy defaults)                       |
-| `entity.get/set/has/destroy()`             | direct index / `destroy(eid)`                                    |
-| `resolve(IWorld)`                          | World-scoped construction reference, retained by the system      |
-| `before/after` DAG literals                | topological sort at build time                                   |
+| Source (you write)                                  | Prod (compiler emits)                                            |
+| --------------------------------------------------- | ---------------------------------------------------------------- |
+| `@component class Position { x = 0 }`               | `Position = { x: Float32Array(CAP), y: ... }` + schema for saves |
+| `constructor(targets: Query<[Position, Velocity]>)` | hoisted query cache, with the same facade query shape            |
+| `for (const { comps: [p, v] } of targets)`          | `for (i...) { eid=dense[i]; px[eid]... }`                        |
+| `world.spawn(new Position(x))`                      | `eid=alloc(); px[eid]=x` (memcpy defaults)                       |
+| `entity.get/set/has/destroy()`                      | direct index / `destroy(eid)`                                    |
+| `createGameSystems(world, input, audio)`            | specialized instance construction and query setup                |
+| `before/after` DAG literals                         | topological sort at build time                                   |
 
 The current runtime is a validated Koota-backed facade. A future compiler may
 strip checks and allocations in a production backend, but compiled output must
@@ -43,10 +44,12 @@ Prior art: `bevy_ecs` derive macros, `becsy` `new Function()` bindings,
 ## What cannot be compiled (keep runtime fallback)
 
 - Dynamic composition: `query(...dynamicList)`, conditional `add()`.
-- Dynamic DI scopes: child containers, `resolve(all(...))` plugins.
+- Dynamic composition: runtime-selected system graphs and query type lists stay
+  on the runtime fallback path.
 - `observe(e => closure)` + coroutines capturing locals (stay AoS).
-- Name-inferred magic (`e.position` from class name) — forbidden; the compiler
-  needs explicit `@query(Position)` and must preserve the facade boundary.
+- Name-inferred magic (`e.position` from class name) is forbidden; the compiler
+  needs explicit query constructor arguments and must preserve the facade
+  boundary.
 
 ## Pragmatic path
 

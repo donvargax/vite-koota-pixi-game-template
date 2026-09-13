@@ -7,6 +7,12 @@ headless game ViewModel. It is divided into phases sized for fresh agent
 sessions. A phase should fit comfortably in one Luna High session without
 requiring context from the conversation that produced this document.
 
+> Historical record: this plan predates the constructor-injection migration.
+> Its completed phase records are preserved as evidence of the work performed,
+> but its older DI, provider, manifest, and ViewModel ownership descriptions are
+> not the current API. `docs/constructor-injection-migration-plan.md` and
+> `docs/ecs-mvvm-design.md` describe the final architecture.
+
 ## Source documents
 
 - `docs/ecs-mvvm-design.md` is the design contract. It defines ownership,

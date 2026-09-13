@@ -1,20 +1,18 @@
 # ECS and headless ViewModel design
 
-Status: accepted for implementation
+Status: accepted and implemented
 
 ## Context
 
 Terrariavania wraps Koota with an Aurelia-inspired API: component classes,
-decorated systems, injected queries, and `resolve()`-style dependency access.
-Pixi renders the game, while Vite+, Vitest, and Playwright provide the build and
-test toolchain.
+decorated systems, explicit query construction, and constructor-visible service
+ports. Pixi renders the game, while Vite+, Vitest, and Playwright provide the
+build and test toolchain.
 
-The syntax is a good fit for the project, but the current ownership model does
-not match it. Systems are process-global singletons even though their queries
-belong to one World. The globally registered `IWorld` can also point a system
-at a different World from the one executing it. Input and audio are imported
-as browser globals, and `main.ts` contains game rules that cannot be tested
-without running the page.
+The syntax is a good fit for the project, but the ownership model must remain
+explicit. Systems and queries belong to one World and are passed to constructors.
+Input and audio reach systems through interfaces, and `main.ts` contains only
+composition and browser binding.
 
 This design keeps the existing programming style and changes the boundaries
 underneath it.
@@ -30,18 +28,19 @@ The game uses three application layers:
 - Pixi, DOM code, keyboard listeners, HTML audio, and rAF are view-side
   adapters assembled in `main.ts`.
 
-Each World has its own dependency scope and system instances. Decorators store
-metadata only; they do not create instances or establish process-global
-runtime state. Production and tests both supply an explicit system manifest.
+Each World has its own system instances and queries. Decorators store metadata
+only; they do not create instances or establish process-global runtime state.
+Production and tests both use explicit system-instance factories.
 
 ## Goals
 
 - Test game rules under Node without Pixi, a canvas, audio playback, keyboard
   events, or a running browser.
-- Allow multiple Worlds to run alternately without sharing queries, systems,
-  dependencies, or lifecycle state.
+- Allow multiple Worlds to run alternately without sharing queries, systems, or
+  lifecycle state.
 - Keep components and systems as plain TypeScript classes.
-- Keep query declaration and priority metadata visible at the system class.
+- Keep query construction and priority metadata visible at the composition site
+  and system class.
 - Hide Koota behind the ECS facade so game code does not depend on Koota
   entity handles or World internals.
 - Give every owned resource an explicit teardown path.
@@ -59,8 +58,8 @@ runtime state. Production and tests both supply an explicit system manifest.
 - Implementing fixed timestep, tile collision, coyote time, relations,
   snapshots, prefabs, menus, or other backlog features during this refactor.
 - Building the deferred ECS compiler.
-- Making every system a pure function. Systems may hold World-scoped service
-  references and lifecycle state.
+- Making every system a pure function. Systems may hold constructor-provided
+  service references and lifecycle state.
 
 ## Model boundary
 
@@ -70,15 +69,14 @@ systems, the ViewModel, views, and tests use facade types.
 A World owns:
 
 - One Koota World.
-- One dependency scope.
-- One instance of every system in its explicit manifest.
-- Query objects injected into those instances.
+- The system instances returned by its factory.
+- The query objects captured by those instances.
 - Initialization and disposal state.
 
 The public World surface supports spawning, destroying entities, querying,
-updating, and disposing. Constructor options select systems and provide
-service instances. Constructor configuration does not become mutable runtime
-state.
+updating, and disposing. The factory receives the World before system
+installation, so it can build World-bound queries and capabilities without a
+general-purpose locator.
 
 `EntityRef` exposes the stable operations game code needs: identity, liveness,
 component presence, component reads and writes, and entity destruction. It
@@ -90,56 +88,45 @@ or spawned values rather than silently creating storage that violates the
 facade contract. A constructor failure is an error, not evidence that the
 component is a tag.
 
-## Dependency scope
+## Construction model
 
-The internal DI module supplies typed service keys, instance providers,
-scopes, and `resolve()` during object construction. It is intentionally small
-and has no knowledge of gameplay.
+`World.create(factory)` creates the Koota-backed World and invokes a synchronous
+factory with that exact World. The factory creates fresh system instances and
+passes each one only the queries, service ports, and capabilities it needs.
+`createGameSystems(world, input, audio)` is the production composition function.
 
-Resolution follows these rules:
+Construction proceeds in this order:
 
-- A World creates a fresh scope before constructing systems.
-- The World registers itself as `IWorld` in that scope.
-- Caller-provided services are registered before any system is constructed.
-- System field initializers may resolve services while the scope constructs
-  the system.
-- A system stores resolved services in fields. It does not call `resolve()`
-  later from `execute()`.
-- Resolution outside a managed construction context fails with a descriptive
-  error.
-- A missing service fails during World initialization, before the first
-  simulation update.
-- Disposing one scope cannot affect another scope.
+1. Create the Koota World.
+2. Invoke the synchronous system factory with the new World.
+3. Sort the returned instances by `@system` priority, preserving factory order
+   for ties.
+4. Initialize the installed systems once.
 
-The scope supports instance providers only for this iteration. Constructor
-registrations, child scopes, aliases, and multi-registration are deferred
-until a concrete use requires them.
+If the factory or initialization fails, `World.create` destroys initialized
+systems and the Koota World before rethrowing the original error. An asynchronous
+factory and reuse of a system instance or instance array are errors.
 
 ## Systems and scheduling
 
 The system decorator records scheduling metadata on the class. It does not
 instantiate the class and does not add it to a mutable global registry.
 
-The game exports one explicit `gameSystems` manifest. Tests may supply a
-smaller manifest to execute one behavior or a short pipeline. World creation
-preserves manifest order when two systems have the same priority, which makes
-the schedule deterministic without adding a dependency graph.
+The game exports `createGameSystems(world, input, audio)`. Tests can return a
+smaller set of instances to execute one behavior or a short pipeline. World
+creation preserves factory order when two systems have the same priority, which
+makes the schedule deterministic without adding a dependency graph.
 
-World initialization proceeds in this order:
-
-1. Create the Koota World and dependency scope.
-2. Register `IWorld` and caller-provided service instances.
-3. Order the supplied system classes by priority and manifest position.
-4. Construct each system within the World scope.
-5. Inject its declared queries.
-6. Invoke its optional initialization hook once.
+World initialization follows the construction order above. System constructors
+receive their queries and ports directly; no property wiring or ambient
+resolution occurs.
 
 An update invokes each initialized system once with the supplied delta. An
 update after disposal is an error.
 
 World disposal invokes every initialized system's teardown once in reverse
-schedule order, disposes the dependency scope, and destroys the Koota World.
-Repeated disposal is safe and does no additional work.
+schedule order and destroys the Koota World. Repeated disposal is safe and does
+no additional work.
 
 The current flat floor correction runs after movement. This prevents a
 falling entity from remaining below the floor until the next frame and leaves
@@ -170,19 +157,21 @@ placement decisions belong to the ViewModel rather than `main.ts`.
 
 ## GameViewModel
 
-`GameViewModel` is a headless application coordinator. It owns the game World
-but does not expose it to the view.
+`GameViewModel` is a headless application coordinator. The composition root
+passes it the game World, but it does not expose that World to the view or own
+its disposal.
 
 Its responsibilities are:
 
-- Construct the World with `gameSystems` and supplied service providers.
+- Use the supplied World and the audio and random service ports.
 - Spawn the initial player and foes.
 - Advance simulation when given a delta.
 - Implement commands such as damaging the player and spawning a foe.
 - Track respawn and reinforcement timers.
 - Decide when application-level sounds should play.
 - Produce immutable HUD and render projections.
-- Dispose the World and reject later updates.
+- Release its own state and reject later updates. World disposal remains the
+  composition root's responsibility.
 
 Starting is explicit and idempotent. Construction alone does not attach
 browser listeners or schedule frames. The composition root controls when the
@@ -225,24 +214,25 @@ The design has three test levels.
 
 ### ECS contract tests
 
-These tests define local components and systems. They verify DI scoping,
-query wiring, schedule order, lifecycle, entity semantics, component
+These tests define local components and systems. They verify explicit query
+construction, schedule order, lifecycle, entity semantics, component
 validation, and isolation between interleaved Worlds. They do not import the
 game systems module.
 
 ### System tests
 
-These tests create a World with a selected system manifest and fake service
-providers. They spawn only the entities needed for the behavior, advance the
-World by explicit deltas, and inspect components or recorded effects. They do
-not construct `GameViewModel` or browser adapters.
+These tests create a World with a selected system factory and fake service
+ports. They spawn only the entities needed for the behavior, advance the World
+by explicit deltas, and inspect components or recorded effects. They do not
+construct `GameViewModel` or browser adapters.
 
 ### ViewModel tests
 
-These tests construct `GameViewModel` with fake input, audio, and random
-providers. They invoke lifecycle methods and commands directly, tick with
-explicit deltas, and assert HUD/render projections and recorded effects. They
-run in the default Node test environment.
+These tests construct a World with `createGameSystems`, then construct
+`GameViewModel` with that World and fake audio and random ports. They invoke
+lifecycle methods and commands directly, tick with explicit deltas, and assert
+HUD/render projections and recorded effects. They run in the default Node test
+environment.
 
 Playwright remains a composition smoke test. It verifies that the browser
 adapters, ViewModel, DOM, and Pixi connect correctly. It does not replace
@@ -255,7 +245,7 @@ Allowed dependencies:
 - ECS facade to Koota.
 - Components to ECS component declarations.
 - Systems to ECS facade, components, and service contracts.
-- ViewModel to ECS facade, components, systems manifest, and service
+- ViewModel to ECS facade, components, and service
   contracts.
 - Browser adapters to service contracts and browser APIs.
 - Pixi view to Pixi and ViewModel projection types.
@@ -269,11 +259,11 @@ Forbidden dependencies:
 - Pixi view to World queries.
 - ECS contract tests to game systems.
 - Decorators to process-global runtime instances.
-- One World scope to another World's providers or systems.
+- One World to another World's systems or queries.
 
 ## Error and lifecycle policy
 
-- Missing required providers fail while constructing the World or ViewModel.
+- A constructor or composition error fails before the first simulation update.
 - Invalid component schemas and values fail at registration or spawn time.
 - Reading an absent component returns no value according to the public type.
 - Entity liveness is checked through `EntityRef.isAlive()`.
@@ -286,14 +276,13 @@ Forbidden dependencies:
 
 ## Migration constraints
 
-The migration keeps temporary compatibility paths only where single-file
-edits would otherwise leave the project uncompilable. Compatibility
-exports are removed after `main.ts`, systems, and Pixi have migrated. They are
-not part of the final API.
+The constructor-injection migration is complete. The final API has no
+compatibility exports, runtime service keys, container, resolver, or query
+property wiring.
 
 Behavior changes are limited to fixes required by the design:
 
-- Worlds no longer share system or DI state.
+- Worlds no longer share system or query state.
 - Audio unlocks only after a genuine user gesture.
 - Jump uses a keydown edge rather than repeating every frame while held.
 - Floor penetration is corrected in the same update.
@@ -305,14 +294,12 @@ Behavior changes are limited to fixes required by the design:
 Using the current process-global singleton map was rejected because it cannot
 provide World isolation or reliable unit tests.
 
-Constructor injection throughout the game was not selected for this
-iteration. Scoped construction-time `resolve()` preserves the intended
-Aurelia-style authoring experience without runtime service location.
+Constructor injection throughout the game was selected because every stable
+dependency edge is visible at the call site and system tests can compose only
+the World and systems they need. The project does not use a runtime container.
 
-Adding `@aurelia/kernel` was deferred. The required feature set is small, and
-the external package is not needed to prove the boundary. The internal DI
-module gives the project one place to adopt a mature container later without
-changing game services again.
+Adding `@aurelia/kernel` was rejected for this iteration. The required feature
+set is small, and explicit composition keeps ownership and teardown visible.
 
 Exposing the World directly from `GameViewModel` was rejected because it would
 let Pixi and DOM code rebuild dependencies on mutable ECS details. Explicit
@@ -325,21 +312,21 @@ item introduces a dedicated loop abstraction.
 
 ## Consequences
 
-The facade gains constructor configuration and disposal, so its useful public
-surface is larger than the original four-method description. That extra
+The facade exposes system-instance composition and disposal, so its useful
+public surface is larger than the original four-method description. That extra
 surface makes ownership explicit and removes hidden global state.
 
 Tests can replace input, audio, and randomness without module mocking. A test
-can load one system instead of importing the entire game schedule. The same
+can compose one system instead of importing the entire game schedule. The same
 World construction path is used in tests and production.
 
 Render and HUD projections introduce allocation. Current entity counts are in
 the hundreds, and the existing proxy queries already allocate. Performance
 work remains measurement-driven.
 
-Explicit system manifests add one list that must be maintained when a system
-is added. In return, system discovery is inspectable, deterministic, and easy
-to restrict in tests.
+Explicit system factories add construction code that must be updated when a
+system is added. In return, system dependencies are inspectable, deterministic,
+and easy to restrict in tests.
 
 ## Follow-on order
 

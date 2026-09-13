@@ -29,9 +29,8 @@ vp check               # format + lint + typecheck, all must pass
 | Path                            | What                                                      |
 | ------------------------------- | --------------------------------------------------------- |
 | `src/ecs/design2.ts`            | ECS facade; the only module that imports Koota            |
-| `src/ecs/di.ts`                 | World-scoped construction and service resolution          |
 | `src/game/components.ts`        | Component classes containing flat model data              |
-| `src/game/systems.ts`           | Systems and the explicit `gameSystems` manifest           |
+| `src/game/systems.ts`           | Systems and the `createGameSystems` composition function  |
 | `src/game/game-view-model.ts`   | Headless game coordinator and immutable projections       |
 | `src/game/pixi-view.ts`         | Renderer consuming render projections                     |
 | `src/game/audio.ts`, `input.ts` | Disposable browser service adapters                       |
@@ -42,16 +41,18 @@ vp check               # format + lint + typecheck, all must pass
 
 ## Model, ViewModel, and View
 
-The ECS `World` is the model. It owns entities, components, queries, systems,
-and a private dependency scope. A World receives its system classes explicitly;
-decorators record metadata but do not create global instances. Every World gets
-its own system instances and injected queries, and `dispose()` tears them down
-in reverse schedule order.
+The ECS `World` is the model. It owns entities, components, queries, system
+instances, and their lifecycle. `World.create(factory)` creates the backend,
+passes the exact World to a synchronous factory, installs the returned systems,
+and initializes them in priority order. Decorators record component and schedule
+metadata; they do not create global instances. Each World gets fresh systems and
+queries, and `dispose()` tears them down in reverse schedule order.
 
-`GameViewModel` owns the World and the application rules around it. It accepts
-input, audio, and randomness through service ports, exposes commands such as
+`GameViewModel` coordinates a World supplied by the composition root. It accepts
+audio and randomness through service ports, exposes commands such as
 `damagePlayer()` and `spawnFoe()`, and returns immutable HUD and render
-projections. It has no Pixi, DOM, or browser-global dependency.
+projections. It has no Pixi, DOM, or browser-global dependency, and it does not
+construct or dispose the injected World.
 
 `PixiView`, the keyboard and audio adapters, and the DOM live on the view side.
 `main.ts` assembles them, starts the ViewModel, advances it from one rAF loop,
@@ -59,9 +60,9 @@ binds commands, renders projections, and disposes every owned resource.
 
 ## ECS in 60 seconds
 
-Components are decorated classes holding only flat data. Systems declare what
-they need with `@query`, resolve services while their World constructs them,
-and run by priority. Equal priorities preserve explicit manifest order.
+Components are decorated classes holding only flat data. Systems receive their
+queries and service ports through constructors and run by priority. Equal
+priorities preserve the order returned by the composition function.
 
 ```ts
 @component()
@@ -71,8 +72,9 @@ class Health {
 
 @system({ priority: 20 })
 class Death extends GameSystem {
-	@query(Health)
-	declare dying: Query<[Health]>;
+	constructor(private readonly dying: Query<[Health]>) {
+		super();
+	}
 
 	execute(): void {
 		for (const { entity, comps } of this.dying) {
@@ -81,23 +83,24 @@ class Death extends GameSystem {
 	}
 }
 
-const world = new World({ systems: [Death] });
+const world = World.create((world) => [new Death(world.query(Health))]);
 world.spawn(new Position(0, 0), new Health(30));
 world.update(dt);
 world.dispose();
 ```
 
-Browser capabilities are contracts (`InputPort`, `AudioPort`, and `RandomPort`)
-registered as providers when a World is created. `EntityRef` and `Query` expose
-the operations game code needs without exposing Koota handles. `entity.get()`
-returns a snapshot copy; write through `set()` or the live query tuples.
+Browser capabilities are TypeScript contracts (`InputPort`, `AudioPort`, and
+`RandomPort`). `createGameSystems(world, input, audio)` passes the needed ports,
+queries, and spawn capability to each system. `EntityRef` and `Query` expose the
+operations game code needs without exposing Koota handles. `entity.get()` returns
+a snapshot copy; write through `set()` or the live query tuples.
 
 ## Test styles
 
-- ECS contract tests use local components and systems to verify DI scoping,
-  query wiring, scheduling, entity semantics, lifecycle, and World isolation.
-- System tests select a small manifest and use fake input and audio ports. They
-  run without Pixi or browser globals.
+- ECS contract tests use local components and systems to verify explicit query
+  construction, scheduling, entity semantics, lifecycle, and World isolation.
+- System tests select a small set of instances and use fake input and audio
+  ports. They run without Pixi or browser globals.
 - ViewModel tests drive commands and explicit deltas, then assert immutable HUD
   and render projections and recorded effects.
 - The Playwright test is a composition smoke test for the browser adapters,
