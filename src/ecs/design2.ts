@@ -110,7 +110,6 @@ export function system(options: SystemOptions = {}): ClassDecorator {
 }
 
 export abstract class GameSystem {
-	// fallow-ignore-next-line unused-class-member
 	initialize?(): void;
 	// fallow-ignore-next-line unused-class-member
 	execute?(_dt: number): void;
