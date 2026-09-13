@@ -61,10 +61,12 @@ function getDefaultAudio(): HtmlAudio {
 if (typeof window !== "undefined") registerSingleton(IAudio, getDefaultAudio());
 
 // Temporary compatibility wrappers for the pre-port composition root.
+// fallow-ignore-next-line unused-export
 export function unlockAudio(): void {
 	getDefaultAudio().bind();
 }
 
+// fallow-ignore-next-line unused-export
 export function sfx(url: string, volume = 0.5): void {
 	getDefaultAudio().play(url, volume);
 }

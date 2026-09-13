@@ -24,6 +24,7 @@ import {
 const SPEED = 150;
 const JUMP_VELOCITY = 380;
 const GRAVITY = 1100;
+// fallow-ignore-next-line unused-export
 export const FLOOR_Y = 0;
 const BOLT_SPEED = 420;
 const FIRE_COOLDOWN = 0.22;

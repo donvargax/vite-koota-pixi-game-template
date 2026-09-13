@@ -1,8 +1,10 @@
 import * as PIXI from "pixi.js";
-import type { World } from "../ecs/design2.ts";
-import { FLOOR_Y } from "./systems.ts";
-import { Position, Sprite, Velocity } from "./components.ts";
 import { loadTextures, type TexKey } from "./assets.ts";
+import type {
+	RenderAnimation,
+	RenderEntityProjection,
+	RenderProjection,
+} from "./game-view-model.ts";
 
 const STAGE_W = 480;
 const STAGE_H = 320;
@@ -23,25 +25,52 @@ function playerFrame(vx: number, airborne: boolean, tick: number): TexKey {
 	return "player_idle";
 }
 
-function pickTexture(kind: string, vx: number, airborne: boolean, tick: number): TexKey {
+function pickTexture(kind: string, animation: RenderAnimation, tick: number): TexKey {
 	if (kind === "zombie") return zombieFrame(tick);
 	if (kind === "bolt") return "bolt";
-	return playerFrame(vx, airborne, tick);
+	return playerTexture(animation, tick);
 }
 
-/** View hook: syncs Position+Sprite+Velocity traits to Pixi sprites. */
+function playerTexture(animation: RenderAnimation, tick: number): TexKey {
+	if (animation === "jump") return "player_jump";
+	return playerFrame(animation === "walk" ? 1 : 0, false, tick);
+}
+
 export class PixiView {
 	private app: PIXI.Application | undefined;
 	private textures: Record<TexKey, PIXI.Texture> | undefined;
 	private nodes = new Map<number, PIXI.Sprite>();
 
-	async mount(parent: HTMLElement, world: World): Promise<void> {
+	async mount(parent: HTMLElement): Promise<void> {
 		this.app = new PIXI.Application();
-		await this.app.init({ background: 0x0b1020, resizeTo: parent });
+		await this.app.init({ background: 0x0b1020, resizeTo: parent, autoStart: false });
 		parent.appendChild(this.app.canvas);
 		this.textures = await loadTextures();
 		this.buildStage();
-		this.app.ticker.add((ticker) => this.sync(world, ticker.lastTime));
+	}
+
+	render(projection: RenderProjection, nowMs: number): void {
+		const app = this.app;
+		const tex = this.textures;
+		if (!app || !tex) return;
+		const tick = Math.floor(nowMs / 180);
+		const alive = new Set<number>();
+		for (const entity of projection.entities) {
+			alive.add(entity.id);
+			this.renderOne(app, tex, entity, tick);
+		}
+		this.reap(alive);
+		app.render();
+	}
+
+	dispose(): void {
+		const app = this.app;
+		this.app = undefined;
+		this.textures = undefined;
+		this.nodes.clear();
+		if (!app) return;
+		app.ticker.stop();
+		app.destroy({ removeView: true }, { children: true });
 	}
 
 	private buildStage(): void {
@@ -69,48 +98,29 @@ export class PixiView {
 		}
 	}
 
-	private sync(world: World, nowMs: number): void {
-		const app = this.app;
-		const tex = this.textures;
-		if (!app || !tex) return;
-		const tick = Math.floor(nowMs / 180);
-		const alive = new Set<number>();
-		for (const { entity, comps } of world.query<[Position, Sprite, Velocity]>(
-			Position,
-			Sprite,
-			Velocity,
-		)) {
-			alive.add(entity.id);
-			this.syncOne(app, tex, entity.id, comps, tick);
-		}
-		this.reap(alive);
-	}
-
-	private syncOne(
+	private renderOne(
 		app: PIXI.Application,
 		tex: Record<TexKey, PIXI.Texture>,
-		id: number,
-		comps: [Position, Sprite, Velocity],
+		entity: RenderEntityProjection,
 		tick: number,
 	): void {
-		const [pos, sprite, vel] = comps;
-		const node = this.getOrCreateNode(app, tex, id);
-		const t = tex[pickTexture(sprite.texture, vel.x, pos.y > FLOOR_Y + 1, tick)];
+		const node = this.getOrCreateNode(app, tex, entity.id);
+		const t = tex[pickTexture(entity.kind, entity.animation, tick)];
 		if (node.texture !== t) node.texture = t;
-		this.applyLook(node, sprite.texture, vel.x);
-		node.position.set(toScreenX(pos.x), toScreenY(pos.y));
+		this.applyLook(node, entity.kind, entity.facing);
+		node.position.set(toScreenX(entity.x), toScreenY(entity.y));
 	}
 
-	private applyLook(node: PIXI.Sprite, kind: string, vx: number): void {
+	private applyLook(node: PIXI.Sprite, kind: string, facing: number): void {
 		if (kind === "bolt") {
 			node.anchor.set(0.5, 0.5);
 			node.blendMode = "add";
-			node.scale.set(0.7 * (vx < 0 ? -1 : 1), 0.7);
+			node.scale.set(0.7 * (facing < 0 ? -1 : 1), 0.7);
 			return;
 		}
 		node.anchor.set(0.5, 1);
 		node.blendMode = "normal";
-		node.scale.set(vx < 0 ? -1 : 1, 1);
+		node.scale.set(facing < 0 ? -1 : 1, 1);
 	}
 
 	private getOrCreateNode(

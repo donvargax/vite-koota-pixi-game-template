@@ -162,7 +162,6 @@ export class EntityRef {
 		return typeof maybe.id === "function" ? maybe.id() : Number(this.inner);
 	}
 
-	// fallow-ignore-next-line unused-class-member
 	isAlive(): boolean {
 		return this.world.isEntityAlive(this.inner);
 	}
@@ -186,6 +185,7 @@ export class EntityRef {
 	}
 
 	/** Temporary compatibility access for consumers migrating to EntityRef methods. */
+	// fallow-ignore-next-line unused-class-member
 	get raw(): KootaEntity {
 		return this.inner;
 	}

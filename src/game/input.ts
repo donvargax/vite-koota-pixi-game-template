@@ -81,6 +81,7 @@ function getDefaultInput(): KeyboardInput {
 if (typeof window !== "undefined") registerSingleton(IInput, getDefaultInput());
 
 // Temporary compatibility wrappers for the pre-port composition root.
+// fallow-ignore-next-line unused-export
 export function bindInput(): void {
 	getDefaultInput().bind();
 }
