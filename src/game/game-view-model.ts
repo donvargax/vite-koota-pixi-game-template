@@ -1,15 +1,7 @@
-import { instanceProvider } from "../ecs/di.ts";
 import { EntityRef, World } from "../ecs/design2.ts";
 import { FoeTag, Gun, Health, PlayerTag, Position, Sprite, Velocity } from "./components.ts";
-import {
-	IAudio,
-	IInput,
-	IRandom,
-	type AudioPort,
-	type InputPort,
-	type RandomPort,
-} from "./contracts.ts";
-import { gameSystems } from "./systems.ts";
+import type { AudioPort, InputPort, RandomPort } from "./contracts.ts";
+import { createGameSystems } from "./systems.ts";
 import { SFX } from "./sound-assets.ts";
 
 const INITIAL_FOE_POSITIONS = [-140, 120, 190] as const;
@@ -62,14 +54,7 @@ export class GameViewModel {
 	constructor(private readonly options: GameViewModelOptions) {
 		this.initialFoePositions = options.initialFoePositions ?? INITIAL_FOE_POSITIONS;
 		this.previousFoeCount = this.initialFoePositions.length;
-		this.world = new World({
-			systems: gameSystems,
-			providers: [
-				instanceProvider(IInput, options.input),
-				instanceProvider(IAudio, options.audio),
-				instanceProvider(IRandom, options.random),
-			],
-		});
+		this.world = World.create((world) => createGameSystems(world, options.input, options.audio));
 	}
 
 	start(): void {

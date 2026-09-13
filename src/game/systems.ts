@@ -1,14 +1,6 @@
-import {
-	GameSystem,
-	IWorld,
-	query,
-	resolve,
-	system,
-	type Query,
-	type World,
-} from "../ecs/design2.ts";
+import { GameSystem, system, type Query, type World } from "../ecs/design2.ts";
 import { SFX } from "./assets.ts";
-import { IAudio, IInput, type AudioPort, type InputPort } from "./contracts.ts";
+import type { AudioPort, InputPort } from "./contracts.ts";
 import {
 	FoeTag,
 	Gun,
@@ -32,13 +24,14 @@ const BOLT_RADIUS_SQ = 20 * 20;
 
 @system({ priority: 6 })
 export class Platformer extends GameSystem {
-	private readonly input = resolve<InputPort>(IInput);
-	private readonly audio = resolve<AudioPort>(IAudio);
-
-	@query(Position, Velocity, PlayerTag)
-	declare players: Query<[Position, Velocity, PlayerTag]>;
-	@query(PlayerTag, Gun)
-	declare guns: Query<[PlayerTag, Gun]>;
+	constructor(
+		private readonly players: Query<[Position, Velocity, PlayerTag]>,
+		private readonly guns: Query<[PlayerTag, Gun]>,
+		private readonly input: InputPort,
+		private readonly audio: AudioPort,
+	) {
+		super();
+	}
 
 	// fallow-ignore-next-line unused-class-member
 	execute(dt: number): void {
@@ -72,8 +65,9 @@ function stepPlayer(
 
 @system({ priority: 11 })
 export class FloorCorrection extends GameSystem {
-	@query(Position, Velocity)
-	declare targets: Query<[Position, Velocity]>;
+	constructor(private readonly targets: Query<[Position, Velocity]>) {
+		super();
+	}
 
 	// fallow-ignore-next-line unused-class-member
 	execute(): void {
@@ -95,8 +89,9 @@ function faceGun(gun: Gun, axis: number): void {
 
 @system({ priority: 10 })
 export class Movement extends GameSystem {
-	@query(Position, Velocity)
-	declare targets: Query<[Position, Velocity]>;
+	constructor(private readonly targets: Query<[Position, Velocity]>) {
+		super();
+	}
 
 	// fallow-ignore-next-line unused-class-member
 	execute(dt: number): void {
@@ -110,12 +105,14 @@ export class Movement extends GameSystem {
 
 @system({ priority: 12 })
 export class Shooting extends GameSystem {
-	private readonly world = resolve<World>(IWorld);
-	private readonly input = resolve<InputPort>(IInput);
-	private readonly audio = resolve<AudioPort>(IAudio);
-
-	@query(Position, Gun, PlayerTag)
-	declare shooters: Query<[Position, Gun, PlayerTag]>;
+	constructor(
+		private readonly shooters: Query<[Position, Gun, PlayerTag]>,
+		private readonly spawner: EntitySpawnCapability,
+		private readonly input: InputPort,
+		private readonly audio: AudioPort,
+	) {
+		super();
+	}
 
 	// fallow-ignore-next-line unused-class-member
 	execute(dt: number): void {
@@ -123,7 +120,7 @@ export class Shooting extends GameSystem {
 			const [pos, gun] = comps;
 			gun.cooldown -= dt;
 			if (this.input.isShootHeld() && gun.cooldown <= 0) {
-				this.world.spawn(
+				this.spawner.spawn(
 					new Position(pos.x + gun.dir * 18, pos.y + 26),
 					new Velocity(gun.dir * BOLT_SPEED, 0),
 					new Projectile(1, 1.4),
@@ -138,12 +135,13 @@ export class Shooting extends GameSystem {
 
 @system({ priority: 15 })
 export class BoltHit extends GameSystem {
-	private readonly audio = resolve<AudioPort>(IAudio);
-
-	@query(Position, Projectile)
-	declare bolts: Query<[Position, Projectile]>;
-	@query(Position, Health, FoeTag)
-	declare foes: Query<[Position, Health, FoeTag]>;
+	constructor(
+		private readonly bolts: Query<[Position, Projectile]>,
+		private readonly foes: Query<[Position, Health, FoeTag]>,
+		private readonly audio: AudioPort,
+	) {
+		super();
+	}
 
 	// fallow-ignore-next-line
 	execute(dt: number): void {
@@ -171,10 +169,12 @@ export class BoltHit extends GameSystem {
 
 @system({ priority: 7 })
 export class FoeShamble extends GameSystem {
-	@query(Position, Velocity, FoeTag)
-	declare foes: Query<[Position, Velocity, FoeTag]>;
-	@query(Position, PlayerTag)
-	declare players: Query<[Position, PlayerTag]>;
+	constructor(
+		private readonly foes: Query<[Position, Velocity, FoeTag]>,
+		private readonly players: Query<[Position, PlayerTag]>,
+	) {
+		super();
+	}
 
 	// fallow-ignore-next-line
 	execute(_dt: number): void {
@@ -191,8 +191,9 @@ export class FoeShamble extends GameSystem {
 
 @system({ priority: 20 })
 export class Death extends GameSystem {
-	@query(Health)
-	declare dying: Query<[Health]>;
+	constructor(private readonly dying: Query<[Health]>) {
+		super();
+	}
 
 	// fallow-ignore-next-line unused-class-member
 	execute(): void {
@@ -202,12 +203,29 @@ export class Death extends GameSystem {
 	}
 }
 
-export const gameSystems = [
-	Platformer,
-	FoeShamble,
-	Movement,
-	FloorCorrection,
-	Shooting,
-	BoltHit,
-	Death,
-] as const;
+export interface EntitySpawnCapability {
+	spawn(...instances: object[]): void;
+}
+
+export function createGameSystems(world: World, input: InputPort, audio: AudioPort): GameSystem[] {
+	const spawner: EntitySpawnCapability = {
+		spawn: (...instances) => {
+			world.spawn(...instances);
+		},
+	};
+
+	return [
+		new Platformer(
+			world.query(Position, Velocity, PlayerTag),
+			world.query(PlayerTag, Gun),
+			input,
+			audio,
+		),
+		new FoeShamble(world.query(Position, Velocity, FoeTag), world.query(Position, PlayerTag)),
+		new Movement(world.query(Position, Velocity)),
+		new FloorCorrection(world.query(Position, Velocity)),
+		new Shooting(world.query(Position, Gun, PlayerTag), spawner, input, audio),
+		new BoltHit(world.query(Position, Projectile), world.query(Position, Health, FoeTag), audio),
+		new Death(world.query(Health)),
+	];
+}

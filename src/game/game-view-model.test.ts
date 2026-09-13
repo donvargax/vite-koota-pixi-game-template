@@ -149,12 +149,19 @@ describe("GameViewModel", () => {
 		first.model.start();
 		second.model.start();
 		first.input.axis = 1;
+		first.input.shootHeld = true;
 
 		first.model.tick(0.1);
 		second.model.tick(0.1);
 
 		expect(first.model.getHudProjection().playerX).toBe(15);
 		expect(second.model.getHudProjection().playerX).toBe(0);
+		expect(
+			first.model.getRenderProjection().entities.some((entity) => entity.kind === "bolt"),
+		).toBe(true);
+		expect(
+			second.model.getRenderProjection().entities.some((entity) => entity.kind === "bolt"),
+		).toBe(false);
 		first.model.dispose();
 		second.model.tick(0.1);
 		expect(second.model.getHudProjection().playerX).toBe(0);

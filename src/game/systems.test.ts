@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import { instanceProvider } from "../ecs/di.ts";
 import { World } from "../ecs/design2.ts";
 import { FoeTag, Gun, Health, PlayerTag, Position, Projectile, Velocity } from "./components.ts";
-import { IAudio, IInput, type AudioPort, type InputPort } from "./contracts.ts";
+import type { AudioPort, InputPort } from "./contracts.ts";
 import {
 	BoltHit,
 	Death,
@@ -11,8 +10,9 @@ import {
 	Movement,
 	Platformer,
 	Shooting,
-	gameSystems,
+	createGameSystems,
 } from "./systems.ts";
+import type { EntitySpawnCapability } from "./systems.ts";
 
 class FakeInput implements InputPort {
 	axis = 0;
@@ -42,36 +42,24 @@ class FakeAudio implements AudioPort {
 	}
 }
 
-function providers(input = new FakeInput(), audio = new FakeAudio()) {
-	return {
-		input,
-		audio,
-		providers: [instanceProvider(IInput, input), instanceProvider(IAudio, audio)],
-	};
+function spawnerFor(world: World): EntitySpawnCapability {
+	return { spawn: (...instances) => world.spawn(...instances) };
 }
 
 describe("game systems", () => {
-	it("exports the production systems in schedule order", () => {
-		expect(gameSystems).toEqual([
-			Platformer,
-			FoeShamble,
-			Movement,
-			FloorCorrection,
-			Shooting,
-			BoltHit,
-			Death,
-		]);
-	});
-
-	it("moves players, faces guns, and plays a jump sound from scoped input", () => {
+	it("moves players, faces guns, and plays a jump sound from constructor ports", () => {
 		const input = new FakeInput();
 		const audio = new FakeAudio();
 		input.axis = -1;
 		input.jumpPressed = true;
-		const world = new World({
-			systems: [Platformer],
-			providers: providers(input, audio).providers,
-		});
+		const world = World.create((created) => [
+			new Platformer(
+				created.query(Position, Velocity, PlayerTag),
+				created.query(PlayerTag, Gun),
+				input,
+				audio,
+			),
+		]);
 		world.spawn(new Position(0, 0), new Velocity(), new PlayerTag(), new Gun());
 
 		world.update(0.1);
@@ -87,10 +75,16 @@ describe("game systems", () => {
 	it("corrects falling entities after movement in the production schedule", () => {
 		const input = new FakeInput();
 		const audio = new FakeAudio();
-		const world = new World({
-			systems: [Platformer, Movement, FloorCorrection],
-			providers: providers(input, audio).providers,
-		});
+		const world = World.create((created) => [
+			new Platformer(
+				created.query(Position, Velocity, PlayerTag),
+				created.query(PlayerTag, Gun),
+				input,
+				audio,
+			),
+			new Movement(created.query(Position, Velocity)),
+			new FloorCorrection(created.query(Position, Velocity)),
+		]);
 		world.spawn(new Position(1, 1), new Velocity(0, -100), new PlayerTag());
 
 		world.update(0.02);
@@ -102,7 +96,9 @@ describe("game systems", () => {
 	});
 
 	it("moves foes toward the first player without requiring ports", () => {
-		const world = new World({ systems: [FoeShamble] });
+		const world = World.create((created) => [
+			new FoeShamble(created.query(Position, Velocity, FoeTag), created.query(Position, PlayerTag)),
+		]);
 		world.spawn(new Position(80, 0), new PlayerTag());
 		world.spawn(new Position(-20, 4), new Velocity(0, 10), new FoeTag());
 
@@ -114,33 +110,56 @@ describe("game systems", () => {
 		world.dispose();
 	});
 
-	it("spawns projectiles in the executing World and observes its own input", () => {
-		const first = providers();
-		const second = providers();
-		first.input.shootHeld = true;
-		second.input.shootHeld = false;
-		const firstWorld = new World({ systems: [Shooting], providers: first.providers });
-		const secondWorld = new World({ systems: [Shooting], providers: second.providers });
-		firstWorld.spawn(new Position(10, 0), new Gun(0, -1), new PlayerTag());
-		secondWorld.spawn(new Position(20, 0), new Gun(), new PlayerTag());
+	it("spawns projectiles through the executing World's narrow capability", () => {
+		const input = new FakeInput();
+		const audio = new FakeAudio();
+		input.shootHeld = true;
+		const world = World.create((created) => [
+			new Shooting(created.query(Position, Gun, PlayerTag), spawnerFor(created), input, audio),
+		]);
+		world.spawn(new Position(10, 0), new Gun(0, -1), new PlayerTag());
 
-		firstWorld.update(0.01);
-		secondWorld.update(0.01);
+		world.update(0.01);
 
-		expect(firstWorld.query(Projectile).count).toBe(1);
-		expect(secondWorld.query(Projectile).count).toBe(0);
-		expect(first.audio.played).toHaveLength(1);
-		expect(second.audio.played).toHaveLength(0);
-		firstWorld.dispose();
-		secondWorld.dispose();
+		expect(world.query(Projectile).count).toBe(1);
+		expect(audio.played).toHaveLength(1);
+		world.dispose();
+	});
+
+	it("keeps shooting and query state isolated between two Worlds", () => {
+		const firstInput = new FakeInput();
+		const secondInput = new FakeInput();
+		const firstAudio = new FakeAudio();
+		const secondAudio = new FakeAudio();
+		firstInput.shootHeld = true;
+		secondInput.shootHeld = true;
+		const first = World.create((world) => createGameSystems(world, firstInput, firstAudio));
+		const second = World.create((world) => createGameSystems(world, secondInput, secondAudio));
+		first.spawn(new Position(), new Gun(), new PlayerTag());
+		second.spawn(new Position(), new Gun(), new PlayerTag());
+
+		first.update(0.01);
+		first.update(0.01);
+		second.update(0.01);
+
+		expect(first.query(Projectile).count).toBe(1);
+		expect(second.query(Projectile).count).toBe(1);
+		first.dispose();
+		second.spawn(new Position(10, 0), new Health(1), new FoeTag());
+		second.update(0.01);
+		expect(second.query(Projectile).count).toBe(1);
+		second.dispose();
 	});
 
 	it("applies bolt damage, expires bolts, and plays hit sounds", () => {
 		const audio = new FakeAudio();
-		const world = new World({
-			systems: [BoltHit],
-			providers: providers(new FakeInput(), audio).providers,
-		});
+		const world = World.create((created) => [
+			new BoltHit(
+				created.query(Position, Projectile),
+				created.query(Position, Health, FoeTag),
+				audio,
+			),
+		]);
 		world.spawn(new Position(0, 0), new Health(3), new FoeTag());
 		world.spawn(new Position(0, 0), new Projectile(2, 1));
 
@@ -153,7 +172,7 @@ describe("game systems", () => {
 	});
 
 	it("destroys entities with depleted health", () => {
-		const world = new World({ systems: [Death] });
+		const world = World.create((created) => [new Death(created.query(Health))]);
 		world.spawn(new Health(0));
 		world.spawn(new Health(1));
 
@@ -163,46 +182,33 @@ describe("game systems", () => {
 		world.dispose();
 	});
 
-	it("preserves independent cooldown state between Worlds", () => {
-		const first = providers();
-		const second = providers();
-		first.input.shootHeld = true;
-		second.input.shootHeld = true;
-		const firstWorld = new World({ systems: [Shooting], providers: first.providers });
-		const secondWorld = new World({ systems: [Shooting], providers: second.providers });
-		firstWorld.spawn(new Position(), new Gun(), new PlayerTag());
-		secondWorld.spawn(new Position(), new Gun(), new PlayerTag());
+	it("creates fresh systems and queries for every factory call", () => {
+		const firstInput = new FakeInput();
+		const secondInput = new FakeInput();
+		const firstAudio = new FakeAudio();
+		const secondAudio = new FakeAudio();
+		let firstSystems: ReturnType<typeof createGameSystems> | undefined;
+		let secondSystems: ReturnType<typeof createGameSystems> | undefined;
+		const first = World.create((world) => {
+			firstSystems = createGameSystems(world, firstInput, firstAudio);
+			return firstSystems;
+		});
+		const second = World.create((world) => {
+			secondSystems = createGameSystems(world, secondInput, secondAudio);
+			return secondSystems;
+		});
 
-		firstWorld.update(0.01);
-		firstWorld.update(0.01);
-		secondWorld.update(0.01);
-
-		expect(firstWorld.query(Projectile).count).toBe(1);
-		expect(secondWorld.query(Projectile).count).toBe(1);
-		firstWorld.dispose();
-		secondWorld.dispose();
+		expect(firstSystems).not.toBe(secondSystems);
+		expect(firstSystems?.[0]).not.toBe(secondSystems?.[0]);
+		first.dispose();
+		second.dispose();
 	});
 
-	it("keeps a surviving World active after another World is disposed", () => {
-		const first = providers();
-		const second = providers();
-		first.input.shootHeld = true;
-		second.input.shootHeld = true;
-		const firstWorld = new World({ systems: [Shooting], providers: first.providers });
-		const secondWorld = new World({ systems: [Shooting], providers: second.providers });
-		firstWorld.dispose();
-		secondWorld.spawn(new Position(), new Gun(), new PlayerTag());
-
-		secondWorld.update(0.01);
-
-		expect(secondWorld.query(Projectile).count).toBe(1);
-		secondWorld.dispose();
-	});
-
-	it("runs the complete manifest with fake ports", () => {
-		const { input, audio, providers: scopedProviders } = providers();
+	it("runs the complete system factory with fake ports", () => {
+		const input = new FakeInput();
+		const audio = new FakeAudio();
 		input.shootHeld = true;
-		const world = new World({ systems: gameSystems, providers: scopedProviders });
+		const world = World.create((created) => createGameSystems(created, input, audio));
 		world.spawn(new Position(0, 0), new Velocity(), new Health(100), new PlayerTag(), new Gun());
 
 		world.update(0.01);
