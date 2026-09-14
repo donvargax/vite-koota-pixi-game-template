@@ -21,7 +21,12 @@
 		"test:watch": "vp test watch",
 		"e2e": "bddgen && playwright test",
 		"e2e:generate": "bddgen",
-		"audit": "fallow audit"
+		"audit": "fallow audit",
+		"perf": "node performance/cli.ts perf",
+		"perf:diagnose": "node performance/cli.ts perf:diagnose",
+		"perf:full": "node performance/cli.ts perf:full",
+		"perf:baseline": "node performance/cli.ts perf:baseline",
+		"typecheck:performance": "vp exec tsc -p tsconfig.performance.json"
 	},
 	"dependencies": {
 		"koota": "^0.6.6",
