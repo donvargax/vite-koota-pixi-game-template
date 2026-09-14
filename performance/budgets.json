@@ -1,0 +1,68 @@
+{
+	"schema": "performance-policy",
+	"schemaVersion": 1,
+	"policyVersion": "phase-5-verdicts-1",
+	"workloadVersion": "phase-3-workloads-1",
+	"calibrated": false,
+	"environmentPolicy": {
+		"compatibility": "local-machine",
+		"runnerClass": null
+	},
+	"metrics": [
+		{
+			"metric": "frameCpuWorkP95Ms",
+			"direction": "lower-is-better",
+			"required": true,
+			"calibrated": false,
+			"absoluteLimit": null,
+			"relativeThreshold": null,
+			"minimumAbsoluteDelta": null
+		},
+		{
+			"metric": "rawRafP95Ms",
+			"direction": "lower-is-better",
+			"required": true,
+			"calibrated": false,
+			"absoluteLimit": null,
+			"relativeThreshold": null,
+			"minimumAbsoluteDelta": null
+		},
+		{
+			"metric": "simulationWallRatio",
+			"direction": "higher-is-better",
+			"required": true,
+			"calibrated": false,
+			"absoluteLimit": null,
+			"relativeThreshold": null,
+			"minimumAbsoluteDelta": null
+		},
+		{
+			"metric": "heapUsedDeltaBytes",
+			"direction": "informational",
+			"required": false,
+			"calibrated": false,
+			"absoluteLimit": null,
+			"relativeThreshold": null,
+			"minimumAbsoluteDelta": null
+		},
+		{
+			"metric": "longTaskRate",
+			"direction": "informational",
+			"required": false,
+			"calibrated": false,
+			"absoluteLimit": null,
+			"relativeThreshold": null,
+			"minimumAbsoluteDelta": null
+		}
+	],
+	"scenarios": [
+		{ "scenarioId": "idle", "required": true },
+		{ "scenarioId": "movement", "required": true },
+		{ "scenarioId": "firing", "required": true },
+		{ "scenarioId": "foes-50", "required": true },
+		{ "scenarioId": "bullets-250", "required": true },
+		{ "scenarioId": "bullets-1000", "required": true },
+		{ "scenarioId": "lifecycle-60", "required": true },
+		{ "scenarioId": "diagnostic-self-test", "required": false }
+	]
+}
