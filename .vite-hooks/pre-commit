@@ -1,4 +1,8 @@
 vp staged || exit $?
+# Documentation-only commits need no application test, E2E, or audit gate.
+if [ -z "$(git diff --cached --name-only --diff-filter=ACMRD -- . ':(exclude)docs/**')" ]; then
+	exit 0
+fi
 vp test run || exit $?
 vp run e2e || exit $?
 # Fallow audit gate (new-only): skip until the repo has a first commit to diff against.

@@ -7,7 +7,8 @@ export default defineConfig({
 		// extensions (e.g. Tiled .tsx which is XML, not TypeScript).
 		"{src,e2e}/**/*.{ts,tsx,js,jsx,json}": "vp check --fix",
 		"{docs,.github}/**/*.{md,yml,yaml}": "vp check --fix",
-		"*.{json,md,ts}": "vp check --fix",
+		"{package,pnpm-workspace,tsconfig,vite.config,playwright.config}.{json,yaml,ts}":
+			"vp check --fix",
 	},
 	test: {
 		// Playwright specs live in e2e/ and run via `vp run e2e`, not vitest.

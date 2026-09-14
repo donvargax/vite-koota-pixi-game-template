@@ -135,7 +135,9 @@ attribution legally required, credited anyway in
 ## Quality gates
 
 - Pre-commit hook (`.vite-hooks/pre-commit`, survives `vp config`):
-  `vp staged` on sources and documentation, then `fallow audit` (new-findings-only gate).
+  `vp staged` on the changed files. Documentation-only commits run only the
+  docs-scoped format/lint check; commits containing source or configuration
+  changes also run unit tests, E2E tests, and `fallow audit` (new-findings-only gate).
 - `fallow` full runs may list intentional API surface (decorator-registered
   systems and lifecycle hooks) — triage before "fixing"; see `TODO.md`.
 - Hook scoping is deliberate: formatter/linter/audit all ignore
