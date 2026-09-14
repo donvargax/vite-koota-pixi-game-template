@@ -1,8 +1,8 @@
 # Performance Contracts
 
-Status: Phase 3 workload handoff. This document fixes the wire vocabulary and
-runner boundaries for the performance loop. Numerical budgets are calibrated
-later; platform capabilities are observed at runtime.
+Status: Phase 6 diagnostics handoff. This document fixes the wire vocabulary
+and runner boundaries for the performance loop. Numerical budgets are still
+uncalibrated; platform capabilities are observed at runtime.
 
 ## Scope And Fixed Decisions
 
@@ -11,6 +11,12 @@ The performance loop builds the production game with a dedicated
 raw observations, compares clean measurements with a reviewed baseline, and
 replays failures independently under diagnostics. The normal page and ordinary
 gameplay E2E remain separate black-box surfaces.
+
+The phase handoffs are `docs/performance-runtime.md` for lifecycle ownership,
+`docs/performance-workloads.md` for declared load and validity,
+`docs/performance-measurement.md` for clean records and collection boundaries,
+and `docs/performance-diagnostics.md` for CDP evidence, source maps, and
+offline reports.
 
 The implementation uses existing Playwright and Chromium/CDP plus
 `@jridgewell/trace-mapping`. Node 24 native erasable TypeScript is used for the
@@ -113,6 +119,16 @@ supported/missing capabilities, raw CPU/trace/allocation paths, build-map
 linkage, mapped CPU summaries, bounded recognized GC/render events,
 truncation, and errors. Raw evidence remains navigable in standard DevTools or
 Perfetto viewers; no custom flame-graph renderer is part of this contract.
+
+Diagnostic evidence has its own mode and status. `cpu-trace` contains a CPU
+profile and/or streamed Chromium trace from one page CDP session;
+`allocation` contains a separate HeapProfiler sampling profile. A diagnostic
+record is `complete`, `unsupported`, `failed`, or `truncated`, and also records
+reproduction as `reproduced`, `not-reproduced`, `invalid`, or `not-run`.
+Instrumentation never changes `ComparisonRecord.originalVerdict`. A truncated
+or incomplete JSON artifact is never a complete record. The diagnostic API
+returns actual category scope, missing capabilities, artifact paths/status,
+bounded byte counts, and errors rather than making the runner infer them.
 
 ## Status And Precedence
 
@@ -264,6 +280,27 @@ runner class plus detected environment. Accepted CI baseline data is tracked
 and reviewed; local accepted baselines are ignored files. A successful run
 never replaces either baseline automatically.
 
+## Phase 6 Reference Capabilities
+
+The reference installation is Playwright `1.63.0` with Chromium
+`153.0.8010.12`. A direct CDP check supports `Profiler` sampling,
+`Tracing.getCategories`, streamed `Tracing.start`/`Tracing.end` with
+`IO.read`/`IO.close`, and `HeapProfiler.startSampling`/
+`HeapProfiler.stopSampling`. The observed trace categories include
+`devtools.timeline`, `disabled-by-default-devtools.timeline`,
+`disabled-by-default-devtools.timeline.frame`, `blink.user_timing`, `v8`,
+`toplevel`, `disabled-by-default-v8.gc`, and
+`disabled-by-default-v8.cpu_profiler`.
+
+Clean frame CPU work, raw RAF cadence, simulation/wall-time ratio, and the
+required workload/progress observations are supported on this reference
+environment. `JSHeapUsedSize` and Long Task observations are available as
+optional diagnostics when the browser exposes them; they remain informational
+and require calibration before policy enforcement. CPU/trace/allocation
+evidence is bounded and source-map attribution is supported only when the
+matching built JavaScript and map are supplied locally. Other renderer/GPU
+coverage remains explicitly unsupported by this harness.
+
 ## CLI Grammar
 
 The planned commands are:
@@ -334,10 +371,17 @@ private.
 - `performance/budgets.json`: schema, directions, required/informational
   metrics, calibration status, and environment policy.
 - `performance/diagnostics.ts`: bounded CPU-trace, Chromium-trace, and
-  allocation collection lifecycles.
+  allocation collection lifecycles. Its public collectors are
+  `createCpuTraceCollector`, `createAllocationCollector`,
+  and `createEvidenceBudget`; collectors expose `start`, `stop`, and bounded
+  `run`. Internal defaults bound the window to 5 seconds, trace drain to 30
+  seconds, each trace to 100 MiB, and all evidence to 500 MiB per run.
 - `performance/evidence.ts`: bounded profile/map/trace parsing and source,
-  GC, and render summaries.
+  GC, and render summaries. It exports `parseEvidence`, `readEvidenceFiles`,
+  `summarizeCpuProfile`, and `summarizeTrace`.
 - `performance/report.ts`: static report data assembly and artifact references.
+  It exports `renderPerformanceReport` and `writePerformanceReport`, emitting
+  `report.html`, `results.json`, `summary.md`, and `artifact-manifest.json`.
 - `performance/cli.ts`: argument parsing, safe paths, build/run orchestration,
   status/exit-code mapping, and trusted-input provenance.
 - `src/game/browser-runtime.ts`: injected runtime controller, lifecycle, frame
@@ -366,8 +410,8 @@ Phase 1 owns this contract, the wire types, package dependency and lockfile,
 TypeScript roots, Vitest/staged-check/lint scopes, and generated-output ignore
 rules. Phase 2 owns runtime lifecycle. Phase 3 owns scenario validity and the
 browser workload. Phase 4 owns clean measurement. Phase 5 owns policy,
-comparison, and baselines. Phase 6 owns diagnostics/evidence. Later phases own
-the CLI, calibration, CI integration, and reporting.
+comparison, and baselines. Phase 6 owns diagnostics, evidence, and static
+report assembly. Later phases own the CLI, calibration, and CI integration.
 
 The Phase 1 gate runs `vp check`, `vp test`,
 `vp exec tsc -p tsconfig.json`, `vp exec tsc -p tsconfig.performance.json`,
