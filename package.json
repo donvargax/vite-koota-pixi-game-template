@@ -24,6 +24,7 @@
 		"audit": "fallow audit",
 		"perf": "node performance/cli.ts perf",
 		"perf:diagnose": "node performance/cli.ts perf:diagnose",
+		"perf:query": "RUN_QUERY_BENCHMARK=1 vp test run src/benchmark/query-benchmark.test.ts --reporter=verbose",
 		"perf:full": "node performance/cli.ts perf:full",
 		"perf:baseline": "node performance/cli.ts perf:baseline",
 		"typecheck:performance": "vp exec tsc -p tsconfig.performance.json"

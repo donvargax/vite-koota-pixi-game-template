@@ -58,6 +58,17 @@ vp run perf:diagnose \
   --output performance-results/idle-diagnosis
 ```
 
+Compare the ECS query representation on the current branch:
+
+```sh
+QUERY_VARIANT=named vp run perf:query
+```
+
+Run the same command on `perf/positional-query-baseline` with
+`QUERY_VARIANT=positional`. This opt-in benchmark measures eight samples of a
+fixed 50-foe/100-projectile combat tick workload after a 30-tick warmup. It
+prints JSON timing distributions and is skipped by ordinary `vp test` runs.
+
 Run the full scenario set. Full mode runs CPU/trace evidence for selected
 scenarios and the allocation pass:
 
