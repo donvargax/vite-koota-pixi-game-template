@@ -10,7 +10,7 @@ export default defineConfig({
 		"*.{json,md,ts}": "vp check --fix",
 	},
 	test: {
-		// Playwright specs live in e2e/ and run via `pnpm e2e`, not vitest.
+		// Playwright specs live in e2e/ and run via `vp run e2e`, not vitest.
 		exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
 		coverage: {
 			provider: "v8",
@@ -32,12 +32,33 @@ export default defineConfig({
 			},
 		},
 	},
-	fmt: {},
+	fmt: {
+		ignorePatterns: ["e2e/.features-gen/**"],
+	},
 	lint: {
 		// Vendored third-party content: Tiled ships a .tsx that is really XML.
-		ignorePatterns: ["public/assets/**", "dist/**"],
+		ignorePatterns: ["public/assets/**", "dist/**", "e2e/.features-gen/**"],
 		jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
 		rules: { "vite-plus/prefer-vite-plus-imports": "error" },
+		overrides: [
+			{
+				files: ["e2e/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"],
+				rules: {
+					"no-restricted-imports": [
+						"error",
+						{
+							patterns: [
+								{
+									// Match src path segments in relative and absolute imports.
+									regex: "(^|/)src(/|$)",
+									message: "E2E tests must use the browser, not import production src modules.",
+								},
+							],
+						},
+					],
+				},
+			},
+		],
 		options: { typeAware: true, typeCheck: true },
 	},
 });

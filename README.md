@@ -15,7 +15,7 @@ browser-side views and adapters. Fork it, keep the shell, replace the game.
 vp install             # install deps
 vp dev                 # HMR dev server
 vp test                # unit tests (Vitest)
-vp run e2e             # browser smoke test (Playwright + Chromium)
+vp run e2e             # Gherkin gameplay + browser smoke tests (Chromium)
 vp run test:coverage   # V8 coverage with thresholds
 vp build               # production build
 vp run audit           # Fallow audit
@@ -26,18 +26,18 @@ vp check               # format + lint + typecheck, all must pass
 
 ## Layout
 
-| Path                            | What                                                      |
-| ------------------------------- | --------------------------------------------------------- |
-| `src/ecs/facade.ts`             | ECS facade; the only module that imports Koota            |
-| `src/game/components.ts`        | Component classes containing flat model data              |
-| `src/game/systems.ts`           | Systems and the `createGameSystems` composition function  |
-| `src/game/game-view-model.ts`   | Headless game coordinator and immutable projections       |
-| `src/game/pixi-view.ts`         | Renderer consuming render projections                     |
-| `src/game/audio.ts`, `input.ts` | Disposable browser service adapters                       |
-| `src/main.ts`                   | Browser composition, HUD binding, and the single rAF loop |
-| `public/assets/`                | Vendored CC0 art/audio (+ `ATTRIBUTION.md`)               |
-| `docs/`                         | Design docs, asset register, and future work              |
-| `e2e/`                          | Playwright composition smoke test                         |
+| Path                            | What                                                       |
+| ------------------------------- | ---------------------------------------------------------- |
+| `src/ecs/facade.ts`             | ECS facade; the only module that imports Koota             |
+| `src/game/components.ts`        | Component classes containing flat model data               |
+| `src/game/systems.ts`           | Systems and the `createGameSystems` composition function   |
+| `src/game/game-view-model.ts`   | Headless game coordinator and immutable projections        |
+| `src/game/pixi-view.ts`         | Renderer consuming render projections                      |
+| `src/game/audio.ts`, `input.ts` | Disposable browser service adapters                        |
+| `src/main.ts`                   | Browser composition, HUD binding, and the single rAF loop  |
+| `public/assets/`                | Vendored CC0 art/audio (+ `ATTRIBUTION.md`)                |
+| `docs/`                         | Design docs, asset register, and future work               |
+| `e2e/`                          | Gherkin gameplay, visual baselines, and browser smoke test |
 
 ## Model, ViewModel, and View
 
@@ -90,8 +90,12 @@ a snapshot copy; write through `set()` or the named live query components.
   ports. They run without Pixi or browser globals.
 - ViewModel tests drive commands and explicit deltas, then assert immutable HUD
   and render projections and recorded effects.
-- The Playwright test is a composition smoke test for the browser adapters,
-  ViewModel, DOM, and Pixi canvas.
+- Playwright runs Gherkin gameplay scenarios through keyboard input, visible HUD,
+  and canvas screenshots. Most use controlled browser time; a tagged subset also
+  runs in real time. A separate smoke test covers the demo buttons.
+
+See [Gameplay E2E tests](docs/e2e.md) for commands, feature authoring, visual
+baselines, and the black-box boundary.
 
 ## Assets and licenses
 
@@ -110,7 +114,7 @@ attribution legally required, credited anyway in
 - Hook scoping is deliberate: formatter/linter/audit all ignore
   `public/assets` (vendored Tiled files include a `.tsx` that is really XML).
 - CI runs `vp install`, `vp check`, `vp test`, coverage, `vp build`, Fallow, and
-  the Playwright smoke test on Node 24.
+  the Playwright gameplay and smoke tests on Node 24.
 
 ## Docs
 

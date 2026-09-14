@@ -2,6 +2,14 @@
 	"name": "terrariavania",
 	"version": "0.0.0",
 	"private": true,
+	"workspaces": {
+		"catalog": {
+			"vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
+			"vitest": "4.1.11",
+			"vite-plus": "0.3.1",
+			"@vitest/coverage-v8": "4.1.11"
+		}
+	},
 	"type": "module",
 	"scripts": {
 		"dev": "vp dev",
@@ -11,7 +19,8 @@
 		"test": "vp test run",
 		"test:coverage": "vp test run --coverage",
 		"test:watch": "vp test watch",
-		"e2e": "playwright test",
+		"e2e": "bddgen && playwright test",
+		"e2e:generate": "bddgen",
 		"audit": "fallow audit"
 	},
 	"dependencies": {
@@ -20,13 +29,19 @@
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.63.0",
+		"@types/node": "^24.13.4",
 		"@vitest/coverage-v8": "catalog:",
 		"fallow": "^3.25.0",
 		"playwright": "^1.63.0",
+		"playwright-bdd": "9.2.1",
 		"typescript": "~6.0.2",
 		"vite": "catalog:",
 		"vite-plus": "catalog:",
 		"vitest": "catalog:"
+	},
+	"overrides": {
+		"vite@*": "catalog:",
+		"vitest@*": "catalog:"
 	},
 	"packageManager": "pnpm@12.4.1"
 }

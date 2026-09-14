@@ -25,3 +25,14 @@ jobs:
       - run: vp run audit
       - run: vp exec playwright install --with-deps chromium
       - run: vp run e2e
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+          include-hidden-files: false
