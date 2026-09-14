@@ -114,9 +114,9 @@ attribution legally required, credited anyway in
 
 ## Docs
 
-- `docs/aurelia-ecs.md` — what we borrowed from Aurelia 2 and what we left out
-- `docs/ecs-design.md` — the three candidate designs and the implemented choice
-- `docs/ecs-mvvm-design.md` — the architectural source of truth
+- `docs/design.md` — Aurelia inspiration, the three candidate designs, and the
+  implemented choice
+- `docs/design.md` — the architectural source of truth
 - `docs/assets.md` — asset register with licenses and sources
 - `docs/future/ecs-compiler.md` — **deferred** SoA compiler idea
 - `TODO.md` — next gameplay and tech slices

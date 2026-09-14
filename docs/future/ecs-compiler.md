@@ -2,7 +2,7 @@
 
 Status: **DEFERRED**. Entry criterion is profiler evidence of sustained
 pressure at 10k+ entities (see the frame-time profiling slice in `TODO.md`),
-not elegance. See also `docs/ecs-design.md` for why Design 2 was chosen
+not elegance. See also `docs/design.md` for why Design 2 was chosen
 without it. This remains a design note, not an implementation commitment.
 
 ## Goal
