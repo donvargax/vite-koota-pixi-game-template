@@ -221,7 +221,7 @@ async function executePerformanceCommand(
 
 		const cleanResult = await runCleanMatrix(
 			options,
-			inputs.manifest,
+			inputs.matrix,
 			rootDirectory,
 			outputDirectory,
 			buildId,
@@ -342,19 +342,19 @@ async function buildAndPreview(
 
 async function runCleanMatrix(
 	options: CliOptions,
-	manifest: ScenarioManifest,
+	matrix: readonly { readonly scenarioId: string; readonly repetition: number }[],
 	rootDirectory: string,
 	outputDirectory: string,
 	buildId: string,
 	baseUrl: string,
 	seams: CliSeams,
 ): Promise<{ command: CommandResult }> {
-	const selection = options.scenarioIds.length > 0 ? options.scenarioIds.join(",") : "";
+	const scenarioIds = [...new Set(matrix.map(({ scenarioId }) => scenarioId))];
 	const environment = {
 		PERF_BASE_URL: baseUrl,
 		PERF_BUILD_ID: buildId,
 		PERF_OUTPUT_DIR: outputDirectory,
-		PERF_SCENARIO_SELECTION: selection,
+		PERF_SCENARIO_SET: options.command === "perf:full" ? "full" : "fast",
 		PERF_REQUIRED_SCENARIOS: options.requiredScenariosPath,
 	};
 	const command = seams.runCommand ?? runCommand;
@@ -367,23 +367,28 @@ async function runCleanMatrix(
 			timeoutMs: DEFAULT_COMMAND_TIMEOUT_MS,
 		},
 	);
-	void manifest;
-	const clean = await command(
-		"vp",
-		[
-			"exec",
-			"playwright",
-			"test",
-			"--config=playwright.performance.config.ts",
-			"scenarios.spec.ts",
-		],
-		{
-			cwd: rootDirectory,
-			env: { ...process.env, ...environment },
-			timeoutMs: DEFAULT_COMMAND_TIMEOUT_MS,
-		},
-	);
-	return { command: clean.status === "passed" ? validity : clean };
+	const cleanResults: CommandResult[] = [];
+	for (const scenarioId of scenarioIds) {
+		cleanResults.push(
+			await command(
+				"vp",
+				[
+					"exec",
+					"playwright",
+					"test",
+					"--config=playwright.performance.config.ts",
+					"scenarios.spec.ts",
+				],
+				{
+					cwd: rootDirectory,
+					env: { ...process.env, ...environment, PERF_SCENARIO_SELECTION: scenarioId },
+					timeoutMs: DEFAULT_COMMAND_TIMEOUT_MS,
+				},
+			),
+		);
+	}
+	const failed = cleanResults.find(({ status }) => status !== "passed");
+	return { command: failed ?? validity };
 }
 
 async function runDiagnostic(

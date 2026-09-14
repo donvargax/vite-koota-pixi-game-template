@@ -4,6 +4,29 @@ Status: Phase 8 collection procedure. The tracked policy is intentionally
 uncalibrated. No threshold in this document is a measured fact, an accepted
 baseline, or an enforcement decision.
 
+## Current Recovery Status
+
+The first local collection receipt is obsolete: its raw records predate the
+workload transport fix and were correctly marked `workload-invalid`. The
+working tree now carries the workload handoff, full-matrix selection, and
+per-scenario browser isolation fixes, but those changes still need a committed
+verification receipt.
+
+Do not continue full calibration on the reference laptop. A full invocation
+contains 21 clean repetitions, including three 60-second `lifecycle-60`
+samples, then CPU/trace and allocation replays for the selected full scenarios.
+Recent local valid records observed `bullets-1000` frame CPU p95 between 228 and
+553 ms with a simulation/wall ratio near 0.0019. `lifecycle-60` observed about
+34 renders in 60 seconds with a ratio near 0.018. These values show why the
+local machine is heavily loaded; they are capacity observations, not policy
+limits.
+
+Resume calibration on one dedicated, stable runner identity. Retain five valid
+fast and three valid full invocations from that identity, then review variation
+and injected-regression sensitivity before changing tracked policy or baseline
+files. Partial local runs remain useful for diagnosis but cannot satisfy the
+Phase 9 gate.
+
 ## Purpose
 
 Calibration turns collected clean measurements into a reviewed policy without

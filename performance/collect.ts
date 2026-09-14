@@ -7,11 +7,30 @@ import type {
 	MeasurementMode,
 	NumericSamples,
 	PhaseAggregate,
+	WorkloadRecord,
 	WindowRecord,
 } from "./contracts.ts";
 
 const DEFAULT_MAXIMUM_SAMPLES = 10_000;
 const DEFAULT_WATCHDOG_MS = 30_000;
+const WORKLOAD_NUMERIC_FIELDS = [
+	"beforeSimulationFoes",
+	"afterSimulationFoes",
+	"afterMaintenanceFoes",
+	"beforeSimulationBolts",
+	"afterSimulationBolts",
+	"afterMaintenanceBolts",
+	"projectedOnScreenBolts",
+	"spawnCount",
+	"recycleCount",
+	"removalCount",
+	"hitCount",
+	"foeDownCount",
+	"simulationSeconds",
+	"rawWallSeconds",
+	"minimumLoad",
+	"maximumLoad",
+] as const;
 
 export interface TimingEntry {
 	readonly name: string;
@@ -54,6 +73,7 @@ class CollectionError extends Error {
 }
 
 export interface TimingCollector {
+	readonly workload: WorkloadRecord | null;
 	readonly start: () => Promise<void>;
 	readonly finish: (completion?: WindowRecord["completion"]) => Promise<WindowRecord>;
 	readonly cancel: () => Promise<WindowRecord>;
@@ -67,6 +87,7 @@ interface CdpMetricValues {
 interface CollectorState {
 	startedAtMs: number | null;
 	startBoundary: CdpMetricValues | null;
+	workload: WorkloadRecord | null;
 }
 
 export function createTimingCollector(options: TimingCollectorOptions): TimingCollector {
@@ -76,9 +97,12 @@ export function createTimingCollector(options: TimingCollectorOptions): TimingCo
 		throw new CollectionError("maximumSamples must be a positive integer");
 	if (!Number.isFinite(options.requestedDurationMs) || options.requestedDurationMs <= 0)
 		throw new CollectionError("requestedDurationMs must be positive and finite");
-	const state: CollectorState = { startedAtMs: null, startBoundary: null };
+	const state: CollectorState = { startedAtMs: null, startBoundary: null, workload: null };
 
 	return {
+		get workload() {
+			return state.workload;
+		},
 		start: async () => {
 			if (state.startedAtMs !== null) throw new CollectionError("collector already started");
 			await withWatchdog(
@@ -112,12 +136,39 @@ async function finishCollection(
 			const snapshot = await options.page.evaluate(readTimingSnapshot, maximumSamples);
 			const endBoundary = await readCdpMetrics(options.cdp);
 			const record = buildWindowRecord(options, state, endBoundary, snapshot, completion);
+			state.workload = workloadFromSnapshot(snapshot, options);
 			await options.page.evaluate(clearConsumedTimingEntries, undefined);
 			return record;
 		})(),
 		watchdogMs,
 		() => new CollectionError("collector finish timed out"),
 	);
+}
+
+function workloadFromSnapshot(
+	snapshot: TimingSnapshot,
+	options: TimingCollectorOptions,
+): WorkloadRecord | null {
+	const end = snapshot.entries.findLast((entry) => entry.name === "benchmark-sample-end");
+	const detail = end?.detail;
+	if (!isRecord(detail) || !isValidWorkloadPayload(detail, options.scenarioId)) return null;
+	return { ...(detail as unknown as WorkloadRecord), repetition: options.repetition };
+}
+
+function isValidWorkloadPayload(value: Record<string, unknown>, scenarioId: string): boolean {
+	return (
+		value.schema === "workload" &&
+		value.schemaVersion === 1 &&
+		value.scenarioId === scenarioId &&
+		WORKLOAD_NUMERIC_FIELDS.every((field) => isFiniteNumber(value[field])) &&
+		typeof value.progressValid === "boolean" &&
+		isWorkloadValidityStatus(value.validityStatus) &&
+		Array.isArray(value.failures)
+	);
+}
+
+function isWorkloadValidityStatus(value: unknown): value is WorkloadRecord["validityStatus"] {
+	return value === "valid" || value === "invalid" || value === "unsupported";
 }
 
 function readTimingSnapshot(maximumSamples: number): TimingSnapshot {

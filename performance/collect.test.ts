@@ -76,7 +76,31 @@ describe("performance timing collection", () => {
 					entryType: "mark",
 					startTime: 50,
 					duration: 0,
-					detail: null,
+					detail: {
+						schema: "workload",
+						schemaVersion: 1,
+						scenarioId: "idle",
+						repetition: 0,
+						beforeSimulationFoes: 0,
+						afterSimulationFoes: 0,
+						afterMaintenanceFoes: 0,
+						beforeSimulationBolts: 0,
+						afterSimulationBolts: 0,
+						afterMaintenanceBolts: 0,
+						projectedOnScreenBolts: 0,
+						spawnCount: 0,
+						recycleCount: 0,
+						removalCount: 0,
+						hitCount: 0,
+						foeDownCount: 0,
+						simulationSeconds: 0.8,
+						rawWallSeconds: 1,
+						minimumLoad: 0,
+						maximumLoad: 0,
+						progressValid: true,
+						validityStatus: "valid",
+						failures: [],
+					},
 				},
 			]),
 		);
@@ -103,6 +127,11 @@ describe("performance timing collection", () => {
 		expect(record.frameCpuWorkSamples.values).toEqual([2, 3]);
 		expect(record.cdp.taskDurationDeltaMs).toBe(2000);
 		expect(record.cdp.heapUsedDeltaBytes).toBe(40);
+		expect(collector.workload).toMatchObject({
+			scenarioId: "idle",
+			simulationSeconds: 0.8,
+			rawWallSeconds: 1,
+		});
 		expect(page.cleared).toHaveLength(2);
 	});
 

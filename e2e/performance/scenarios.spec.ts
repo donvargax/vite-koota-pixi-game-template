@@ -1,7 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import manifestJson from "../../performance/scenarios.json" with { type: "json" };
-import { selectScenarios, validateScenarioManifest } from "../../performance/scenarios.ts";
+import {
+	getScenario,
+	selectScenarios,
+	validateScenarioManifest,
+} from "../../performance/scenarios.ts";
 import type { ScenarioDefinition } from "../../performance/contracts.ts";
 import type {
 	BoundedSampleMetadata,
@@ -12,10 +16,17 @@ import type {
 import { expect, test } from "./fixtures.ts";
 
 const manifest = validateScenarioManifest(manifestJson);
-const fastScenarios = selectScenarios(manifest, "fast");
+const selectedIds = (process.env.PERF_SCENARIO_SELECTION ?? "")
+	.split(",")
+	.map((id) => id.trim())
+	.filter(Boolean);
+const selectedScenarios =
+	selectedIds.length > 0
+		? selectedIds.map((id) => getScenario(manifest, id))
+		: selectScenarios(manifest, process.env.PERF_SCENARIO_SET === "full" ? "full" : "fast");
 const outputRoot = process.env.PERF_OUTPUT_DIR ?? join("performance-results", "phase4-fast");
 
-for (const scenario of fastScenarios) {
+for (const scenario of selectedScenarios) {
 	test.describe(`${scenario.id} clean measurements`, () => {
 		for (let repetition = 0; repetition < scenario.repetitions; repetition++) {
 			test.describe(`repetition ${repetition}`, () => {
@@ -52,6 +63,7 @@ for (const scenario of fastScenarios) {
 							repetition,
 							environment: performance.environment,
 							window: record,
+							workload: performance.workload,
 							visibleSummary: summary,
 							error: thrown instanceof Error ? thrown.message : null,
 							testTitle: testInfo.title,

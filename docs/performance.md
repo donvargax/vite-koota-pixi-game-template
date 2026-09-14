@@ -65,6 +65,13 @@ scenarios and the allocation pass:
 vp run perf:full --collect --output performance-results/full-collect
 ```
 
+Full mode is intentionally expensive. It runs the complete clean matrix,
+including three 60-second `lifecycle-60` repetitions, then replays selected
+scenarios under CPU/trace and allocation diagnostics. Do not use it repeatedly
+on a developer laptop for calibration. Use `--scenario <id>` to isolate one
+workload while debugging, and use the dedicated CI/nightly runner for the
+five-fast/three-full calibration set.
+
 All path inputs can be overridden explicitly with `--policy`, `--baseline`,
 `--required-scenarios`, `--output`, and `--baseline-dir`. Paths are recorded as
 provenance. The runner never deletes arbitrary input paths.
@@ -149,18 +156,17 @@ bytes of output:
 vp run perf --collect --output performance-results/phase7-collect-timed
 ```
 
-It exited `2` because the existing Phase 4 scenario writer does not include a
+It exited `2` because the existing Phase 4 scenario writer did not include a
 required `workload` record in its raw output; the CLI preserved those records
-and marked them invalid instead of fabricating workload data. The default
-policy collect/accept/successful-compare demonstration therefore remains
-blocked by the owning workload-record fix and Phase 9 calibration. The
-disposable CLI tests use explicit temporary policy, manifest, baseline, and
-output paths to verify successful comparison, automatic regression escalation,
-diagnostic failure preservation, and full-mode evidence without changing
-tracked policy or accepting production data.
+and marked them invalid instead of fabricating workload data. The workload
+transport and full-matrix collection fixes are now present in the working tree,
+but the default-policy collect/accept/successful-compare demonstration remains
+blocked by Phase 9 calibration. The disposable CLI tests use explicit temporary
+policy, manifest, baseline, and output paths to verify successful comparison,
+automatic regression escalation, diagnostic failure preservation, and full-mode
+evidence without changing tracked policy or accepting production data.
 
 The canonical retained invalid-workload receipt is
-`performance-results/phase8-collection/summary.md`; it reports
-`workload-invalid` for the fast scenarios. No calibration run IDs, accepted
-baseline provenance, or CI/nightly run IDs are available, so none are asserted
-by this handoff.
+`performance-results/phase8-collection/summary.md`; it records the pre-fix
+fast scenarios. No calibration run IDs, accepted baseline provenance, or
+CI/nightly run IDs are available, so none are asserted by this handoff.

@@ -1,7 +1,8 @@
 # Continuous Performance Implementation Plan
 
 Status: implementation specification with Phase 9 blocked. The local command,
-diagnostic, reporting, and collection workflow surfaces exist, but calibration,
+diagnostic, reporting, and collection workflow surfaces exist, and the workload
+transport/full-matrix fixes are present in the working tree. Calibration,
 accepted baseline, enforcing CI, and end-to-end Phase 10 handoff claims remain
 unverified.
 
@@ -274,11 +275,12 @@ Phase gate: finish step 60's default-policy local collect/accept/successful-comp
 **Phase 10: Handoff**
 Model: Luna High, medium reasoning. Purpose: close documentation and integration details. Input: verified workflows and commands. Output: complete operator and delegation handoffs.
 
-Current gate status: blocked by Phase 9. The tracked policy is uncalibrated,
-`performance/baselines/ci.json` is absent, and the retained collection receipt
-is `workload-invalid` because raw Phase 4 scenario records omit the required
-`workload` record. Steps 69-73 remain unchecked until valid calibration,
-baseline, and workflow receipts exist.
+Current gate status: blocked by Phase 9. The tracked policy is uncalibrated and
+`performance/baselines/ci.json` is absent. The original Phase 8 receipt is
+obsolete because the workload transport and full-matrix selection fixes are now
+present in the working tree, but they have not yet produced the required stable
+runner calibration receipt. Steps 69-73 remain unchecked until valid
+calibration, baseline, and workflow receipts exist.
 
 - [ ] **69 | Update `docs/e2e.md`.** Prerequisites: 60, 66-68. Replace planned labels with verified command/config behavior; link `docs/performance.md`. State ordinary E2E and performance jobs are separate parts of the same validation pipeline, and preserve black-box/fake-clock boundaries. Acceptance: no conflicting command or permission remains.
 
@@ -289,6 +291,58 @@ baseline, and workflow receipts exist.
 - [ ] **72 | Update `docs/performance-contract.md`.** Prerequisites: 68-71. Finalize export/file map, status precedence, baseline policy, handoff links and end-to-end verification receipts. Record observed platform capabilities, not future promises. Acceptance: no unresolved interface, runner-discovery, workload-validity, automatic-escalation or bootstrap task remains; only explicitly external authorization/hardware limits may be listed.
 
 - [ ] **73 | Update `docs/performance-master-plan.md`.** Prerequisite: 72. Check off only actually completed steps and add a final validation receipt with command results, local and CI run IDs, report/profile paths, accepted baseline provenance and administrator-required actions if not authorized. Do not mark unavailable CI/hardware verification complete. Acceptance: this checklist accurately reflects implemented and verified work, not intentions.
+
+**Phase 11: Calibration Recovery**
+Model: Luna High, medium reasoning. Purpose: finish the blocked Phase 9
+calibration without repeatedly saturating a developer machine or treating
+partial local runs as production evidence. This phase does not bypass Phase 9,
+accept a baseline, or mark CI enforcement complete.
+
+Current evidence and stop condition:
+
+- Five fast local invocations became workload-valid after the workload transport
+  fix, but they are ignored local artifacts and have no review receipt.
+- Two full local invocations completed the full matrix, but a third valid full
+  invocation was not collected. The interrupted attempt was stopped because
+  full mode runs 21 clean repetitions plus CPU/trace and allocation replays.
+- On the reference laptop, `bullets-1000` reached 228-553 ms frame CPU p95 with
+  a simulation/wall ratio near 0.0019. `lifecycle-60` reached about 34 renders
+  in 60 seconds with a ratio near 0.018. These are capacity observations, not
+  approved budgets.
+- No more full calibration runs should be started on that laptop. A dedicated,
+  stable runner is required before thresholds or a CI baseline can be reviewed.
+
+Operator sequence:
+
+1. Commit and verify the workload transport, full-matrix selection, per-scenario
+   Playwright isolation, and lifecycle validity-envelope fixes. Keep generated
+   `performance-results/` output ignored.
+2. Run the final quality checks and one fast collection on the chosen reference
+   runner. Confirm every clean record has a workload payload, complete coverage,
+   valid load, and a non-null simulation/wall-time ratio.
+3. Run exactly five valid fast and three valid full invocations on that same
+   runner class, using separate immutable output directories. Do not retry into
+   an existing directory or combine partial matrices.
+4. Review per-repetition distributions, capacity ratios, browser errors, input
+   lateness, diagnostic status, environment identity, workload fingerprints,
+   and artifact completeness. Reject any invocation with missing records,
+   dropped samples, invalid workload, or infrastructure failure.
+5. Perform disposable injected-regression sensitivity checks. Choose only
+   reviewed CPU-work and capacity thresholds that sit above observed unchanged
+   variation. Keep cadence, heap, and long-task metrics informational when they
+   are unsupported or noisy.
+6. Complete Phase 9 steps 64-68: update the tracked policy, explicitly accept
+   the reviewed full baseline from trusted main, switch CI/nightly to
+   enforcement, and record actual workflow run IDs.
+7. Resume Phase 10 steps 69-73 only after the enforcing CI workflow and nightly
+   workflow have both been exercised. Require branch protection separately,
+   with administrator authorization.
+
+Phase 11 exit criteria: a reviewed calibration receipt names five fast and
+three full valid run IDs from one compatible runner identity; `budgets.json` and
+`performance/baselines/ci.json` have reviewed provenance; enforcing CI rejects
+missing or incompatible trusted inputs; and no local laptop run is treated as
+the authoritative full-tier baseline.
 
 **Final Validation**
 Verification-only actions; fixes return to their one-file owning step.
@@ -318,24 +372,25 @@ handoff attempt and does not override the Phase 9 gate.
   `performance/cli.ts`/`performance/evidence.ts`; no dead-code or complexity
   findings were reported.
 - `git diff --check`: pass.
-- Local collection receipt:
-  `performance-results/phase8-collection/summary.md` reports
-  `workload-invalid`; the raw Phase 4 records omit the required `workload`
-  record. The tracked policy remains `calibrated: false` and
+- Historical local collection receipt:
+  `performance-results/phase8-collection/summary.md` reports the pre-fix
+  `workload-invalid` result. The tracked policy remains `calibrated: false` and
   `performance/baselines/ci.json` is absent.
 - CI/nightly run IDs, calibration run IDs, report/profile paths from valid
   calibration, and accepted-baseline provenance: none available. They are not
   invented or claimed.
 - Not run for this documentation-only handoff: `vp run test:coverage`,
   `vp run build`, `vp run e2e`, or CI/nightly workflows. Those results cannot
-  establish Phase 9 calibration or enforcement, and the local performance
-  collection prerequisite is already workload-invalid.
+  establish Phase 9 calibration or enforcement. The current local recovery
+  runs are not an accepted baseline because they lack the required stable-runner
+  review set.
 
-Steps 64-73 remain unchecked. The exact blocker is the owning workload-record
-fix, followed by five valid fast and three valid full calibration invocations;
-only then can policy, baseline, enforcing CI, and the dependent Phase 10
-acceptance claims be verified. Required-check configuration remains an
-administrator action after those prerequisites and is not claimed here.
+Steps 64-73 remain unchecked. The workload-record and full-matrix fixes need a
+committed verification receipt, followed by five valid fast and three valid
+full calibration invocations on one compatible stable runner. Only then can
+policy, baseline, enforcing CI, and the dependent Phase 10 acceptance claims be
+verified. Required-check configuration remains an administrator action after
+those prerequisites and is not claimed here.
 
 **Fresh-Instance Prompt**
 Use this template for each step; fill only the bracketed fields.

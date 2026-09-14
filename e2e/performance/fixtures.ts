@@ -11,6 +11,7 @@ import { createTimingCollector, type TimingCollector } from "../../performance/c
 import type {
 	InputSchedule,
 	InputTimingObservation,
+	WorkloadRecord,
 	WindowRecord,
 } from "../../performance/contracts.ts";
 import { getScenario, validateScenarioManifest } from "../../performance/scenarios.ts";
@@ -26,6 +27,7 @@ export interface PerformanceSession {
 	readonly environment: EnvironmentSnapshot;
 	readonly collector: TimingCollector;
 	readonly browserErrors: readonly string[];
+	readonly workload: WorkloadRecord | null;
 	startAndReady(): Promise<void>;
 	beginSample(): Promise<void>;
 	scheduleInput(schedule: InputSchedule, durationMs: number): void;
@@ -106,6 +108,9 @@ export const test = base.extend<PerformanceFixtures & PerformanceOptions>({
 				}),
 				collector,
 				browserErrors,
+				get workload() {
+					return collector.workload;
+				},
 				startAndReady: async () => {
 					await clickVisibleControl(page, "benchmark-start");
 					await expect(page.locator("#benchmark-status")).toHaveText("Ready", { timeout: 30_000 });

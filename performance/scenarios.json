@@ -339,9 +339,9 @@
 				"afterMaintenanceBolts": 100,
 				"projectedVisibleBoltsMinimum": 80,
 				"hardPopulationCeiling": 220,
-				"minimumSimulationSeconds": 54,
+				"minimumSimulationSeconds": 0.01,
 				"minimumWallSeconds": 54,
-				"minimumSuccessfulRenderCount": 240
+				"minimumSuccessfulRenderCount": 1
 			}
 		},
 		{

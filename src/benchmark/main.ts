@@ -161,8 +161,8 @@ function endSample(): void {
 	if (!workload || !sampling || finalRecord) return;
 	const elapsedSeconds = Math.max(0, (performance.now() - sampleStartMs) / 1000);
 	sampling = false;
-	performance.mark("benchmark-sample-end");
 	finalRecord = workload.getWindowRecord(elapsedSeconds);
+	performance.mark("benchmark-sample-end", { detail: finalRecord });
 	showFinalRecord(finalRecord);
 }
 
