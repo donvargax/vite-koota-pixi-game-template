@@ -2,6 +2,5 @@ vp staged || exit $?
 vp test run || exit $?
 vp run e2e || exit $?
 # Fallow audit gate (new-only): skip until the repo has a first commit to diff against.
-command -v fallow >/dev/null 2>&1 || exit 0
 git rev-parse --verify HEAD >/dev/null 2>&1 || exit 0
-fallow audit --quiet --gate-marker pre-commit
+vp exec fallow audit --quiet --gate-marker pre-commit
