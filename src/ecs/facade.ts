@@ -138,24 +138,20 @@ export class Query<T extends object> implements Iterable<{ entity: EntityRef; co
 
 	*[Symbol.iterator](): Iterator<{ entity: EntityRef; components: T }> {
 		for (const ref of this.source()) {
-			const components = Object.fromEntries(
-				this.types.map(([name, ctor]) => {
-					const snap: Record<string | symbol, unknown> = {
-						...(ref.get(ctor) as Record<string, unknown> | undefined),
-					};
-					return [
-						name,
-						new Proxy(snap, {
-							set(target, prop, value) {
-								target[prop] = value;
-								ref.set(ctor, { [prop]: value } as Record<string, unknown>);
-								return true;
-							},
-						}),
-					];
-				}),
-			) as T;
-			yield { entity: ref, components };
+			const components: Record<string, unknown> = {};
+			for (const [name, ctor] of this.types) {
+				const snap: Record<string | symbol, unknown> = {
+					...(ref.get(ctor) as Record<string, unknown> | undefined),
+				};
+				components[name] = new Proxy(snap, {
+					set(target, prop, value) {
+						target[prop] = value;
+						ref.set(ctor, { [prop]: value } as Record<string, unknown>);
+						return true;
+					},
+				});
+			}
+			yield { entity: ref, components: components as T };
 		}
 	}
 
