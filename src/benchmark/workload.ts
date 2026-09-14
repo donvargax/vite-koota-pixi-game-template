@@ -220,12 +220,12 @@ class RealGameWorkload implements BenchmarkWorkload {
 
 	private maintainBolts(countReplenishment: boolean): void {
 		let entries = this.boltEntries();
-		for (const { entity, components } of entries) {
+		for (const [index, { components }] of entries.entries()) {
 			if (
-				components.position.x < this.scenario.layout.worldMinX - 64 ||
-				components.position.x > this.scenario.layout.worldMaxX + 64
+				components.position.x < this.scenario.layout.worldMinX ||
+				components.position.x > this.scenario.layout.worldMaxX
 			) {
-				entity.destroy();
+				this.recycleBolt(index, components);
 				this.recycleCount = boundedIncrement(this.recycleCount, 1);
 			}
 		}
@@ -275,6 +275,27 @@ class RealGameWorkload implements BenchmarkWorkload {
 		this.spawnCount = boundedIncrement(this.spawnCount, 1);
 	}
 
+	private recycleBolt(
+		index: number,
+		components: { position: Position; velocity: Velocity; projectile: Projectile },
+	): void {
+		const upper = components.position.y > this.scenario.layout.groundY + 20;
+		components.position.x = upper
+			? this.randomBetween(this.scenario.layout.worldMinX, this.scenario.layout.worldMaxX)
+			: this.groundBoltX(index);
+		components.position.y = upper
+			? this.scenario.layout.boltUpperLaneY
+			: this.scenario.layout.boltGroundLaneY;
+		const speed = lerp(
+			this.scenario.targets.boltVelocityMin,
+			this.scenario.targets.boltVelocityMax,
+			this.random(),
+		);
+		components.velocity.x = (this.random() < 0.5 ? -1 : 1) * speed;
+		components.velocity.y = 0;
+		components.projectile.life = this.scenario.targets.finiteBoltLifeSeconds;
+	}
+
 	private groundBoltX(index: number): number {
 		if (this.scenario.targets.foes === 0)
 			return this.randomBetween(this.scenario.layout.worldMinX, this.scenario.layout.worldMaxX);
@@ -309,9 +330,11 @@ class RealGameWorkload implements BenchmarkWorkload {
 
 	private boltEntries(): Array<{
 		entity: ReturnType<World["query"]>["entities"][number];
-		components: { position: Position; projectile: Projectile };
+		components: { position: Position; velocity: Velocity; projectile: Projectile };
 	}> {
-		return [...this.world.query({ position: Position, projectile: Projectile })];
+		return [
+			...this.world.query({ position: Position, velocity: Velocity, projectile: Projectile }),
+		];
 	}
 
 	private validityFailures(rawWallSeconds: number): WorkloadRecord["failures"] {

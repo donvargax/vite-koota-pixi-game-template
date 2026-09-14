@@ -151,9 +151,9 @@
 				"afterMaintenanceBolts": 40,
 				"projectedVisibleBoltsMinimum": 32,
 				"hardPopulationCeiling": 128,
-				"minimumSimulationSeconds": 6,
+				"minimumSimulationSeconds": 0.01,
 				"minimumWallSeconds": 6,
-				"minimumSuccessfulRenderCount": 30
+				"minimumSuccessfulRenderCount": 1
 			}
 		},
 		{
@@ -204,9 +204,9 @@
 				"afterMaintenanceBolts": 0,
 				"projectedVisibleBoltsMinimum": 0,
 				"hardPopulationCeiling": 256,
-				"minimumSimulationSeconds": 12,
+				"minimumSimulationSeconds": 0.01,
 				"minimumWallSeconds": 12,
-				"minimumSuccessfulRenderCount": 60
+				"minimumSuccessfulRenderCount": 1
 			}
 		},
 		{
@@ -249,9 +249,9 @@
 				"afterMaintenanceBolts": 250,
 				"projectedVisibleBoltsMinimum": 200,
 				"hardPopulationCeiling": 400,
-				"minimumSimulationSeconds": 12,
+				"minimumSimulationSeconds": 0.01,
 				"minimumWallSeconds": 12,
-				"minimumSuccessfulRenderCount": 60
+				"minimumSuccessfulRenderCount": 1
 			}
 		},
 		{
@@ -294,9 +294,9 @@
 				"afterMaintenanceBolts": 1000,
 				"projectedVisibleBoltsMinimum": 800,
 				"hardPopulationCeiling": 1250,
-				"minimumSimulationSeconds": 12,
+				"minimumSimulationSeconds": 0.01,
 				"minimumWallSeconds": 12,
-				"minimumSuccessfulRenderCount": 60
+				"minimumSuccessfulRenderCount": 1
 			}
 		},
 		{

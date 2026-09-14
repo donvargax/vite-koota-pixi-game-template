@@ -159,14 +159,17 @@ function clearSampleMarks(): void {
 
 function endSample(): void {
 	if (!workload || !sampling || finalRecord) return;
+	const elapsedSeconds = Math.max(0, (performance.now() - sampleStartMs) / 1000);
 	sampling = false;
 	performance.mark("benchmark-sample-end");
-	finalRecord = workload.getWindowRecord(elapsedSampleSeconds());
+	finalRecord = workload.getWindowRecord(elapsedSeconds);
 	showFinalRecord(finalRecord);
 }
 
 function showFinalRecord(record: ReturnType<BenchmarkWorkload["getWindowRecord"]>): void {
 	updateTelemetry(record);
+	if (!record.progressValid)
+		errorEl.textContent = record.failures.map(({ message }) => message).join(", ");
 	setStatus(record.progressValid ? "Sample complete" : "Sample invalid");
 	setControls("complete");
 }
