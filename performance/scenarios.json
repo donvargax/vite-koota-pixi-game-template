@@ -1,0 +1,393 @@
+{
+	"schema": "scenario-manifest",
+	"schemaVersion": 1,
+	"workloadVersion": "phase-3-workloads-1",
+	"scenarios": [
+		{
+			"schema": "scenario",
+			"schemaVersion": 1,
+			"workloadVersion": "phase-3-workloads-1",
+			"id": "idle",
+			"category": "idle",
+			"seed": 101,
+			"targets": {
+				"foes": 0,
+				"bolts": 0,
+				"upperLaneBoltRatio": 0.8,
+				"finiteBoltLifeSeconds": 1.4,
+				"boltVelocityMin": 240,
+				"boltVelocityMax": 420,
+				"boltDamage": 1
+			},
+			"layout": {
+				"version": "ground-slots-v1",
+				"pattern": "seeded-slots",
+				"worldMinX": -160,
+				"worldMaxX": 160,
+				"groundY": 0,
+				"boltUpperLaneY": 96,
+				"boltGroundLaneY": 0
+			},
+			"audio": "representative",
+			"input": { "origin": "sample-start", "events": [], "maxLatenessMs": 50, "heldKeys": [] },
+			"warmupMs": 2000,
+			"sampleMs": 8000,
+			"repetitions": 3,
+			"membership": { "fast": true, "full": true, "baseline": true },
+			"validity": {
+				"beforeSimulationFoes": 0,
+				"afterSimulationFoes": 0,
+				"afterMaintenanceFoes": 0,
+				"beforeSimulationBolts": 0,
+				"afterSimulationBolts": 0,
+				"afterMaintenanceBolts": 0,
+				"projectedVisibleBoltsMinimum": 0,
+				"hardPopulationCeiling": 8,
+				"minimumSimulationSeconds": 6,
+				"minimumWallSeconds": 6,
+				"minimumSuccessfulRenderCount": 30
+			}
+		},
+		{
+			"schema": "scenario",
+			"schemaVersion": 1,
+			"workloadVersion": "phase-3-workloads-1",
+			"id": "movement",
+			"category": "movement",
+			"seed": 202,
+			"targets": {
+				"foes": 0,
+				"bolts": 0,
+				"upperLaneBoltRatio": 0.8,
+				"finiteBoltLifeSeconds": 1.4,
+				"boltVelocityMin": 240,
+				"boltVelocityMax": 420,
+				"boltDamage": 1
+			},
+			"layout": {
+				"version": "ground-slots-v1",
+				"pattern": "seeded-slots",
+				"worldMinX": -160,
+				"worldMaxX": 160,
+				"groundY": 0,
+				"boltUpperLaneY": 96,
+				"boltGroundLaneY": 0
+			},
+			"audio": "representative",
+			"input": {
+				"origin": "sample-start",
+				"events": [
+					{ "atMs": 0, "kind": "keydown", "key": "ArrowRight" },
+					{ "atMs": 3000, "kind": "keyup", "key": "ArrowRight" },
+					{ "atMs": 4000, "kind": "keydown", "key": "ArrowLeft" },
+					{ "atMs": 7000, "kind": "keyup", "key": "ArrowLeft" }
+				],
+				"maxLatenessMs": 50,
+				"heldKeys": ["ArrowRight", "ArrowLeft"]
+			},
+			"warmupMs": 2000,
+			"sampleMs": 8000,
+			"repetitions": 3,
+			"membership": { "fast": true, "full": true, "baseline": true },
+			"validity": {
+				"beforeSimulationFoes": 0,
+				"afterSimulationFoes": 0,
+				"afterMaintenanceFoes": 0,
+				"beforeSimulationBolts": 0,
+				"afterSimulationBolts": 0,
+				"afterMaintenanceBolts": 0,
+				"projectedVisibleBoltsMinimum": 0,
+				"hardPopulationCeiling": 8,
+				"minimumSimulationSeconds": 6,
+				"minimumWallSeconds": 6,
+				"minimumSuccessfulRenderCount": 30
+			}
+		},
+		{
+			"schema": "scenario",
+			"schemaVersion": 1,
+			"workloadVersion": "phase-3-workloads-1",
+			"id": "firing",
+			"category": "firing",
+			"seed": 303,
+			"targets": {
+				"foes": 10,
+				"bolts": 40,
+				"upperLaneBoltRatio": 0.8,
+				"finiteBoltLifeSeconds": 1.4,
+				"boltVelocityMin": 240,
+				"boltVelocityMax": 420,
+				"boltDamage": 1
+			},
+			"layout": {
+				"version": "ground-slots-v1",
+				"pattern": "seeded-slots",
+				"worldMinX": -160,
+				"worldMaxX": 160,
+				"groundY": 0,
+				"boltUpperLaneY": 96,
+				"boltGroundLaneY": 0
+			},
+			"audio": "representative",
+			"input": {
+				"origin": "sample-start",
+				"events": [
+					{ "atMs": 0, "kind": "keydown", "key": "Space" },
+					{ "atMs": 7000, "kind": "keyup", "key": "Space" }
+				],
+				"maxLatenessMs": 50,
+				"heldKeys": ["Space"]
+			},
+			"warmupMs": 2000,
+			"sampleMs": 8000,
+			"repetitions": 3,
+			"membership": { "fast": true, "full": true, "baseline": true },
+			"validity": {
+				"beforeSimulationFoes": 10,
+				"afterSimulationFoes": 9,
+				"afterMaintenanceFoes": 10,
+				"beforeSimulationBolts": 40,
+				"afterSimulationBolts": 39,
+				"afterMaintenanceBolts": 40,
+				"projectedVisibleBoltsMinimum": 32,
+				"hardPopulationCeiling": 128,
+				"minimumSimulationSeconds": 6,
+				"minimumWallSeconds": 6,
+				"minimumSuccessfulRenderCount": 30
+			}
+		},
+		{
+			"schema": "scenario",
+			"schemaVersion": 1,
+			"workloadVersion": "phase-3-workloads-1",
+			"id": "foes-50",
+			"category": "stress",
+			"seed": 404,
+			"targets": {
+				"foes": 50,
+				"bolts": 0,
+				"upperLaneBoltRatio": 0.8,
+				"finiteBoltLifeSeconds": 1.4,
+				"boltVelocityMin": 240,
+				"boltVelocityMax": 420,
+				"boltDamage": 1
+			},
+			"layout": {
+				"version": "ground-slots-v1",
+				"pattern": "seeded-slots",
+				"worldMinX": -160,
+				"worldMaxX": 160,
+				"groundY": 0,
+				"boltUpperLaneY": 96,
+				"boltGroundLaneY": 0
+			},
+			"audio": "representative",
+			"input": {
+				"origin": "sample-start",
+				"events": [
+					{ "atMs": 0, "kind": "keydown", "key": "Space" },
+					{ "atMs": 14000, "kind": "keyup", "key": "Space" }
+				],
+				"maxLatenessMs": 50,
+				"heldKeys": ["Space"]
+			},
+			"warmupMs": 3000,
+			"sampleMs": 15000,
+			"repetitions": 3,
+			"membership": { "fast": true, "full": true, "baseline": true },
+			"validity": {
+				"beforeSimulationFoes": 50,
+				"afterSimulationFoes": 49,
+				"afterMaintenanceFoes": 50,
+				"beforeSimulationBolts": 0,
+				"afterSimulationBolts": 0,
+				"afterMaintenanceBolts": 0,
+				"projectedVisibleBoltsMinimum": 0,
+				"hardPopulationCeiling": 256,
+				"minimumSimulationSeconds": 12,
+				"minimumWallSeconds": 12,
+				"minimumSuccessfulRenderCount": 60
+			}
+		},
+		{
+			"schema": "scenario",
+			"schemaVersion": 1,
+			"workloadVersion": "phase-3-workloads-1",
+			"id": "bullets-250",
+			"category": "stress",
+			"seed": 505,
+			"targets": {
+				"foes": 50,
+				"bolts": 250,
+				"upperLaneBoltRatio": 0.8,
+				"finiteBoltLifeSeconds": 1.4,
+				"boltVelocityMin": 240,
+				"boltVelocityMax": 420,
+				"boltDamage": 1
+			},
+			"layout": {
+				"version": "ground-slots-v1",
+				"pattern": "seeded-slots",
+				"worldMinX": -160,
+				"worldMaxX": 160,
+				"groundY": 0,
+				"boltUpperLaneY": 96,
+				"boltGroundLaneY": 0
+			},
+			"audio": "synthetic-counting",
+			"input": { "origin": "sample-start", "events": [], "maxLatenessMs": 50, "heldKeys": [] },
+			"warmupMs": 3000,
+			"sampleMs": 15000,
+			"repetitions": 3,
+			"membership": { "fast": false, "full": true, "baseline": true },
+			"validity": {
+				"beforeSimulationFoes": 50,
+				"afterSimulationFoes": 49,
+				"afterMaintenanceFoes": 50,
+				"beforeSimulationBolts": 250,
+				"afterSimulationBolts": 249,
+				"afterMaintenanceBolts": 250,
+				"projectedVisibleBoltsMinimum": 200,
+				"hardPopulationCeiling": 400,
+				"minimumSimulationSeconds": 12,
+				"minimumWallSeconds": 12,
+				"minimumSuccessfulRenderCount": 60
+			}
+		},
+		{
+			"schema": "scenario",
+			"schemaVersion": 1,
+			"workloadVersion": "phase-3-workloads-1",
+			"id": "bullets-1000",
+			"category": "stress",
+			"seed": 606,
+			"targets": {
+				"foes": 200,
+				"bolts": 1000,
+				"upperLaneBoltRatio": 0.8,
+				"finiteBoltLifeSeconds": 1.4,
+				"boltVelocityMin": 240,
+				"boltVelocityMax": 420,
+				"boltDamage": 1
+			},
+			"layout": {
+				"version": "ground-slots-v1",
+				"pattern": "seeded-slots",
+				"worldMinX": -160,
+				"worldMaxX": 160,
+				"groundY": 0,
+				"boltUpperLaneY": 96,
+				"boltGroundLaneY": 0
+			},
+			"audio": "synthetic-counting",
+			"input": { "origin": "sample-start", "events": [], "maxLatenessMs": 50, "heldKeys": [] },
+			"warmupMs": 3000,
+			"sampleMs": 15000,
+			"repetitions": 3,
+			"membership": { "fast": false, "full": true, "baseline": true },
+			"validity": {
+				"beforeSimulationFoes": 200,
+				"afterSimulationFoes": 199,
+				"afterMaintenanceFoes": 200,
+				"beforeSimulationBolts": 1000,
+				"afterSimulationBolts": 999,
+				"afterMaintenanceBolts": 1000,
+				"projectedVisibleBoltsMinimum": 800,
+				"hardPopulationCeiling": 1250,
+				"minimumSimulationSeconds": 12,
+				"minimumWallSeconds": 12,
+				"minimumSuccessfulRenderCount": 60
+			}
+		},
+		{
+			"schema": "scenario",
+			"schemaVersion": 1,
+			"workloadVersion": "phase-3-workloads-1",
+			"id": "lifecycle-60",
+			"category": "lifecycle",
+			"seed": 707,
+			"targets": {
+				"foes": 50,
+				"bolts": 100,
+				"upperLaneBoltRatio": 0.8,
+				"finiteBoltLifeSeconds": 1.4,
+				"boltVelocityMin": 240,
+				"boltVelocityMax": 420,
+				"boltDamage": 1
+			},
+			"layout": {
+				"version": "ground-slots-v1",
+				"pattern": "seeded-slots",
+				"worldMinX": -160,
+				"worldMaxX": 160,
+				"groundY": 0,
+				"boltUpperLaneY": 96,
+				"boltGroundLaneY": 0
+			},
+			"audio": "synthetic-counting",
+			"input": { "origin": "sample-start", "events": [], "maxLatenessMs": 50, "heldKeys": [] },
+			"warmupMs": 3000,
+			"sampleMs": 60000,
+			"repetitions": 3,
+			"membership": { "fast": false, "full": true, "baseline": true },
+			"validity": {
+				"beforeSimulationFoes": 50,
+				"afterSimulationFoes": 49,
+				"afterMaintenanceFoes": 50,
+				"beforeSimulationBolts": 100,
+				"afterSimulationBolts": 99,
+				"afterMaintenanceBolts": 100,
+				"projectedVisibleBoltsMinimum": 80,
+				"hardPopulationCeiling": 220,
+				"minimumSimulationSeconds": 54,
+				"minimumWallSeconds": 54,
+				"minimumSuccessfulRenderCount": 240
+			}
+		},
+		{
+			"schema": "scenario",
+			"schemaVersion": 1,
+			"workloadVersion": "phase-3-workloads-1",
+			"id": "diagnostic-self-test",
+			"category": "self-test",
+			"seed": 808,
+			"targets": {
+				"foes": 0,
+				"bolts": 0,
+				"upperLaneBoltRatio": 0.8,
+				"finiteBoltLifeSeconds": 1.4,
+				"boltVelocityMin": 240,
+				"boltVelocityMax": 420,
+				"boltDamage": 1
+			},
+			"layout": {
+				"version": "ground-slots-v1",
+				"pattern": "seeded-slots",
+				"worldMinX": -160,
+				"worldMaxX": 160,
+				"groundY": 0,
+				"boltUpperLaneY": 96,
+				"boltGroundLaneY": 0
+			},
+			"audio": "disabled",
+			"input": { "origin": "sample-start", "events": [], "maxLatenessMs": 50, "heldKeys": [] },
+			"warmupMs": 2000,
+			"sampleMs": 5000,
+			"repetitions": 1,
+			"membership": { "fast": false, "full": false, "baseline": false },
+			"validity": {
+				"beforeSimulationFoes": 0,
+				"afterSimulationFoes": 0,
+				"afterMaintenanceFoes": 0,
+				"beforeSimulationBolts": 0,
+				"afterSimulationBolts": 0,
+				"afterMaintenanceBolts": 0,
+				"projectedVisibleBoltsMinimum": 0,
+				"hardPopulationCeiling": 8,
+				"minimumSimulationSeconds": 4,
+				"minimumWallSeconds": 4,
+				"minimumSuccessfulRenderCount": 20
+			}
+		}
+	]
+}

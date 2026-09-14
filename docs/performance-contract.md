@@ -1,6 +1,6 @@
 # Performance Contracts
 
-Status: Phase 1 contract handoff. This document fixes the wire vocabulary and
+Status: Phase 3 workload handoff. This document fixes the wire vocabulary and
 runner boundaries for the performance loop. Numerical budgets are calibrated
 later; platform capabilities are observed at runtime.
 
@@ -223,6 +223,32 @@ entry and preserves an observable checksum. Source attribution must map samples
 to that bundled function; an injected `page.evaluate` function is not valid
 evidence.
 
+Phase 3 implements the workload surfaces as follows:
+
+- `performance/scenarios.json` declares `idle`, `movement`, `firing`,
+  `foes-50`, `bullets-250`, `bullets-1000`, `lifecycle-60`, and the excluded
+  `diagnostic-self-test` scenario with finite seeded populations and explicit
+  validity envelopes.
+- `performance/scenarios.ts` exports `validateScenarioManifest`,
+  `getScenario`, `selectScenarios`, `expandScenarioMatrix`, and
+  `workloadFingerprint`. Validation accepts unknown JSON only after checking
+  schema, bounds, timing order, membership, target consistency, and selection.
+- `src/benchmark/workload.ts` exports `createBenchmarkWorkload`,
+  `BenchmarkWorkloadContext`, `BenchmarkWorkloadOptions`, and the
+  `BenchmarkWorkload` hook/record interface. It uses real composed systems,
+  bounded seeded maintenance, finite bolt cohorts, exact target boundaries,
+  removal and hit observations, and projection-based visibility.
+- `performance.html` and `src/benchmark/main.ts` provide the visible benchmark
+  surface. The page selects only a validated scenario from the URL, starts from
+  a user gesture, and emits bounded `benchmark-frame` User Timing marks with
+  the runtime observation payload. It does not expose a game global or hidden
+  entity controls.
+
+The workload adapter reports removal activity without assigning an exact cause
+when the composed game systems do not expose one. Seeded generation repeats
+initial layout and cohort selection for equal timestep sequences, but variable
+simulation time still changes movement, collisions, and expiry boundaries.
+
 ## Fingerprints, Baselines, And Compatibility
 
 Trusted required membership, repetitions, and workload definitions come from
@@ -347,3 +373,27 @@ The Phase 1 gate runs `vp check`, `vp test`,
 `vp exec tsc -p tsconfig.json`, `vp exec tsc -p tsconfig.performance.json`,
 and `vp run audit`. Existing E2E remains unchanged. A new-root collection test
 is owned by step 21; Phase 1 only makes its eventual collection explicit.
+
+Phase 3 checks completed before the phase gate:
+
+- `vp install`: pass, already up to date.
+- `vp check`: pass, 44 files formatted and no warnings, lint errors, or type
+  errors.
+- `vp test`: pass, 14 files and 78 tests.
+- `vp run test:coverage`: pass, 92.53% statements, 82.72% branches, 94.57%
+  functions, and 94.83% lines.
+- `vp test run performance/scenarios.test.ts`: pass, 15 tests.
+- `vp test run src/benchmark/workload.test.ts`: pass, 6 tests.
+- `vp exec tsc -p tsconfig.json --noEmit`: pass.
+- `vp exec tsc -p tsconfig.performance.json`: pass.
+- `vp build`: pass; normal output contains only `index.html` and no benchmark
+  entry or source maps.
+- `vp build --mode performance`: pass; `dist-performance` contains both HTML
+  entries, optimized output, and matching external source maps.
+- `vp run audit`: pass; the new benchmark roots and public contract are
+  reachable, generated directories remain excluded only by precise patterns,
+  and the pre-commit gate reports no new audit findings.
+
+The independent Playwright performance fixture does not exist yet, so the
+browser validity gate is deferred to the first task after that fixture is
+created. No performance budget is assessed in Phase 3.

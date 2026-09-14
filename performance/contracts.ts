@@ -1,5 +1,3 @@
-// fallow-ignore-file unused-file
-
 export type SchemaVersion = 1;
 
 export type RecordSchema =

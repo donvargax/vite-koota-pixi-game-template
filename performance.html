@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Terrariavania performance workload</title>
+		<style>
+			:root {
+				color-scheme: dark;
+				font-family: system-ui, sans-serif;
+			}
+			body {
+				margin: 0;
+				min-width: 520px;
+				background: #0b1020;
+				color: #e6edf3;
+			}
+			main {
+				min-height: 100vh;
+				padding: 24px;
+				box-sizing: border-box;
+			}
+			#stage {
+				width: 480px;
+				height: 320px;
+				border: 1px solid #30363d;
+			}
+			.layout {
+				display: flex;
+				gap: 24px;
+				align-items: flex-start;
+				flex-wrap: wrap;
+			}
+			.panel {
+				min-width: 240px;
+			}
+			.panel > div {
+				margin: 6px 0;
+			}
+			.controls {
+				display: flex;
+				gap: 8px;
+				flex-wrap: wrap;
+				margin-top: 16px;
+			}
+			button {
+				padding: 8px 12px;
+			}
+			.error {
+				color: #ff7b72;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>Terrariavania performance workload</h1>
+			<p id="benchmark-status">Loading benchmark...</p>
+			<div class="layout">
+				<div>
+					<div id="stage" aria-label="Terrariavania game stage"></div>
+					<div class="panel" aria-label="Game status">
+						<div>hp: <strong id="hp">100</strong></div>
+						<div>foes: <strong id="count">0</strong></div>
+						<div>player x: <strong id="px">0</strong></div>
+					</div>
+				</div>
+				<section class="panel" aria-label="Benchmark status">
+					<div>build: <strong id="benchmark-build">unknown</strong></div>
+					<div>scenario: <strong id="benchmark-scenario">unknown</strong></div>
+					<div>renderer: <strong id="benchmark-renderer">unknown</strong></div>
+					<div>load: <strong id="benchmark-load">0 foes / 0 bolts</strong></div>
+					<div>progress: <strong id="benchmark-progress">0 renders</strong></div>
+					<div id="benchmark-error" class="error" role="alert"></div>
+					<div class="controls">
+						<button id="benchmark-start" type="button">Start</button>
+						<button id="benchmark-begin" type="button">Begin sample</button>
+						<button id="benchmark-end" type="button">End sample</button>
+						<button id="benchmark-stop" type="button">Stop</button>
+					</div>
+				</section>
+			</div>
+		</main>
+		<script type="module" src="/src/benchmark/main.ts"></script>
+	</body>
+</html>
