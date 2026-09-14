@@ -3,7 +3,7 @@ import { World } from "../ecs/facade.ts";
 import type { AudioPort, Direction2D, InputPort, RandomPort } from "./contracts.ts";
 import { SFX } from "./sound-assets.ts";
 import { GameViewModel } from "./game-view-model.ts";
-import { createGameSystems } from "./systems.ts";
+import { createGameSystems } from "./composition.ts";
 
 class FakeInput implements InputPort {
 	axis = 0;
@@ -174,6 +174,98 @@ describe("GameViewModel", () => {
 		model.dispose();
 		expect(() => model.tick(0.1)).toThrow(/disposed GameViewModel/);
 		expect(() => model.spawnFoe()).toThrow(/disposed GameViewModel/);
+		world.dispose();
+	});
+
+	it("respawns only after the exact delay with fresh movement and weapon state", () => {
+		const { model, input, audio, world } = createModel([], []);
+		model.start();
+		input.axis = -1;
+		input.aim = { x: 0, y: 1 };
+		input.dashPressed = true;
+		input.shootHeld = true;
+		model.tick(0.01);
+		input.axis = 0;
+		input.aim = { x: 0, y: 0 };
+		input.shootHeld = false;
+		model.damagePlayer(100);
+		model.tick(2);
+		expect(model.getHudProjection().playerHealth).toBe("dead");
+		model.tick(0.01);
+		expect(model.getHudProjection()).toEqual({ playerHealth: 100, playerX: 0, foeCount: 0 });
+		expect(audio.played.at(-1)).toEqual({ sound: SFX.respawn, volume: 0.5 });
+		input.shootHeld = true;
+		input.dashPressed = true;
+		model.tick(0.01);
+		const render = model.getRenderProjection();
+		expect(render.entities.find((entity) => entity.kind === "player")).toMatchObject({
+			x: 6,
+			facing: 1,
+		});
+		expect(render.entities.filter((entity) => entity.kind === "bolt")).toHaveLength(2);
+		expect(
+			render.entities
+				.filter((entity) => entity.kind === "bolt")
+				.every((entity) => entity.velocityX === 420 && entity.velocityY === 0),
+		).toBe(true);
+		model.dispose();
+		world.dispose();
+	});
+
+	it("preserves command and frame damage sounds without replaying damage after death", () => {
+		const { model, audio, world } = createModel();
+		model.start();
+		model.damagePlayer(25);
+		model.tick(0);
+		model.tick(0);
+		model.damagePlayer(75);
+		model.tick(0);
+		model.damagePlayer(25);
+		expect(audio.played).toEqual([
+			{ sound: SFX.hurt, volume: 0.5 },
+			{ sound: SFX.hurt, volume: 0.4 },
+			{ sound: SFX.hurt, volume: 0.5 },
+		]);
+		model.dispose();
+		world.dispose();
+	});
+
+	it("reports a defeated enemy through HUD, rendering, and audio after shooting", () => {
+		const { model, input, audio, world } = createModel([], [120]);
+		model.start();
+		input.shootHeld = true;
+		for (let frame = 0; frame < 100; frame++) model.tick(0.016);
+		expect(model.getHudProjection().foeCount).toBe(0);
+		expect(model.getRenderProjection().entities.some((entity) => entity.kind === "zombie")).toBe(
+			false,
+		);
+		expect(audio.played.filter(({ sound }) => sound === SFX.foeDown)).toEqual([
+			{ sound: SFX.foeDown, volume: 0.5 },
+		]);
+		model.dispose();
+		world.dispose();
+	});
+
+	it("orders simultaneous respawn and reinforcements before their first simulated frame", () => {
+		const { model, audio, world } = createModel([], []);
+		model.start();
+		model.tick(1);
+		model.damagePlayer(100);
+		model.tick(2);
+		expect(model.getHudProjection()).toEqual({ playerHealth: "dead", playerX: null, foeCount: 0 });
+		model.tick(0.01);
+		expect(audio.played.slice(-2)).toEqual([
+			{ sound: SFX.respawn, volume: 0.5 },
+			{ sound: SFX.coin, volume: 0.5 },
+		]);
+		expect(model.getRenderProjection().entities.map(({ kind, x, y }) => ({ kind, x, y }))).toEqual([
+			{ kind: "player", x: 0, y: 40 },
+			{ kind: "zombie", x: -160, y: 0 },
+			{ kind: "zombie", x: 160, y: 0 },
+		]);
+		model.tick(0.01);
+		expect(audio.played.some(({ sound }) => sound === SFX.foeDown)).toBe(false);
+		model.dispose();
 		world.dispose();
 	});
 

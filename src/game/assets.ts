@@ -1,5 +1,4 @@
 import { Assets, type Texture } from "pixi.js";
-export { SFX } from "./sound-assets.ts";
 
 const A = "/assets";
 

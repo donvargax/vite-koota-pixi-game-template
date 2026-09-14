@@ -94,8 +94,10 @@ Priority ties preserve the order returned by the composition function.
 
 ## Implemented boundary
 
-- Production exports `createGameSystems(world, input, audio)`. Importing a system
-  module does not register an instance or make it run.
+- [`composition.ts`](../src/game/composition.ts) exports
+  `createGameSystems(world, input, audio)` and explicitly wires every system's
+  queries, ports, and spawn capability. Importing a feature module does not
+  register an instance or make it run.
 - `World.create(factory)` creates one Koota backend and installs the fresh system
   instances returned by that factory.
 - `World.query(spec)` accepts a named component spec. For example,
@@ -109,37 +111,82 @@ Priority ties preserve the order returned by the composition function.
 - The backend can change without exposing Koota entities or storage internals to
   systems, the ViewModel, views, or tests.
 
+The schedule interleaves features by `@system` priority: `Platformer` (6),
+`FoeShamble` (7), `DashSystem` (8), `AimSystem` (9), `Movement` (10),
+`FloorCorrection` (11), `Shooting` (12), `BoltHit` (15), and `Death` (20).
+The returned array selects instances; its order only breaks priority ties.
+
+## Feature locality
+
+The goal is locality, not a strict single-file rule. Keep a feature's data, tuning,
+systems, and controllers close enough to read and change together, with fast
+tests in adjacent `*.test.ts` files:
+
+- [`locomotion.ts`](../src/game/locomotion.ts): platformer input, movement, and
+  floor correction.
+- [`dash.ts`](../src/game/dash.ts): dash state, tuning, and execution.
+- [`combat.ts`](../src/game/combat.ts): aim, weapon and projectile components,
+  shooting, and hits.
+- [`enemies.ts`](../src/game/enemies.ts): shambling, the enemy recipe, and
+  `EnemyPopulation` observations and reinforcements.
+- [`player-life.ts`](../src/game/player-life.ts): `PlayerLife`, the player recipe,
+  damage observations, respawn, and the health-based `Death` system.
+
+Shared vocabulary stays small: [`actors.ts`](../src/game/actors.ts) owns `Health`
+and the `PlayerTag`/`FoeTag` tags;
+[`spatial.ts`](../src/game/spatial.ts) owns `Position`, `Velocity`, `Facing`, and
+`FLOOR_Y`; [`presentation.ts`](../src/game/presentation.ts) owns the headless
+`Sprite` data component. The player recipe imports exported `DashState`, `Gun`,
+`AimGun`, and `Aim` components from their features. This practical wiring is
+allowed; features are not isolated plugins and need no registration framework.
+
 ## Application layers
 
 The application has three layers:
 
 - The ECS World is the model. It owns entities, components, named queries, and
   systems.
-- `GameViewModel` coordinates application behavior around the World. It exposes
-  commands and immutable HUD and render projections.
+- `GameViewModel` composes real `PlayerLife` and `EnemyPopulation` controllers
+  around the World. It exposes commands and immutable HUD and render projections.
 - Pixi, DOM code, keyboard listeners, HTML audio, and the animation frame loop
   are view-side adapters assembled by `main.ts`.
 
-The ViewModel does not expose the World to views or dispose it. The composition
-root owns the World and the browser adapters. `main.ts` does not contain game
-rules, spawning rules, health rules, or ECS queries.
+After `world.update(dt)`, the ViewModel reads player state and enemy count, then
+calls both controllers' observation methods before either respawn or
+reinforcements. Player observation, enemy observation, respawn, and reinforcement
+effects retain that sound order, even when several happen in one frame.
+
+The ViewModel starts and disposes its controllers, but does not expose the World
+to views or dispose it. The composition root owns the World and browser adapters.
+`main.ts` does not contain game rules, spawning rules, health rules, or ECS queries.
 
 ## Dependency and test boundaries
 
-The ECS facade is the only module that imports Koota. Components use the facade's
-decorators, systems use components and service contracts, and the ViewModel uses
-the facade, components, and service contracts. Views consume projections rather
-than World queries or Koota handles.
+Feature locality preserves the layers, ports, and adapters. The ECS facade is the
+only module that imports Koota. Features use facade components, queries, and
+service contracts; the ViewModel composes their controllers and builds projections.
+Views consume projections rather than World queries or Koota handles.
+
+Browser modules remain in `src/game`, alongside headless features, without
+directory churn. [`vite.config.ts`](../vite.config.ts) guards headless modules
+against browser-adapter and Pixi imports and browser globals. Input, audio, and
+randomness cross the boundary through `InputPort`, `AudioPort`, and `RandomPort`.
 
 The tests use the same construction boundaries as production:
 
 - ECS contract tests cover components, named query construction, scheduling,
   lifecycle, validation, entity behavior, and World isolation.
-- System tests compose a selected set of systems with fake input and audio ports.
-- ViewModel tests compose a real World with fake service ports and assert
-  immutable projections and recorded effects.
-- Playwright covers browser composition, DOM, and Pixi wiring; it does not
-  replace the lower-level tests.
+- Adjacent feature tests compose selected systems with fake input and audio ports.
+- ViewModel tests compose a real World and real feature controllers with fake
+  service ports, then assert immutable projections and recorded effects.
+- The unchanged black-box Playwright suite covers browser composition, DOM, and
+  Pixi wiring through keyboard input, visible HUD, and canvas screenshots.
+
+For learning and gameplay changes, start at the MVVM boundary: issue commands or
+set fake input, advance explicit `dt`, and inspect HUD/render projections and
+recorded audio. Use smaller feature tests for edge cases such as dash cooldowns
+or projectile expiry. Keep black-box E2E as the browser-level fallback rather than
+using browser internals to test game rules.
 
 ## What we deliberately left out
 
@@ -156,8 +203,8 @@ The tests use the same construction boundaries as production:
 
 ## Working with the design
 
-- Add data with a `@component` class containing flat primitive fields. This keeps
-  the component compatible with the current Koota-backed storage.
+- Add feature-owned data beside its behavior as a `@component` class containing
+  flat primitive fields. Share it only where another feature needs the same data.
 - Add behavior with a `@system({ priority })` class whose constructor receives
   named `Query` values, service ports, and any narrow capabilities it needs.
 - Read and write in loops through named query components. Read once with
@@ -166,6 +213,8 @@ The tests use the same construction boundaries as production:
   `world.spawn(new Position(x, y), new Health(30))`.
 - Create every World explicitly with
   `World.create((world) => createGameSystems(world, input, audio))`.
+- Wire new systems explicitly in `composition.ts` and choose priorities against
+  the complete schedule, not just the order within a feature file.
 - Systems that create entities receive a narrow spawn capability instead of a
   World locator.
 

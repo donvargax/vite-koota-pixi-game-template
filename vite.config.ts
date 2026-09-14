@@ -17,11 +17,19 @@ export default defineConfig({
 			reporter: ["text", "html"],
 			include: [
 				"src/ecs/**/*.ts",
+				"src/game/actors.ts",
 				"src/game/audio.ts",
+				"src/game/combat.ts",
+				"src/game/composition.ts",
 				"src/game/contracts.ts",
+				"src/game/dash.ts",
+				"src/game/enemies.ts",
 				"src/game/game-view-model.ts",
 				"src/game/input.ts",
-				"src/game/systems.ts",
+				"src/game/locomotion.ts",
+				"src/game/player-life.ts",
+				"src/game/presentation.ts",
+				"src/game/spatial.ts",
 			],
 			exclude: ["**/*.test.ts"],
 			thresholds: {
@@ -41,6 +49,52 @@ export default defineConfig({
 		jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
 		rules: { "vite-plus/prefer-vite-plus-imports": "error" },
 		overrides: [
+			{
+				files: [
+					"src/ecs/**/*.ts",
+					"src/game/{locomotion,dash,combat,enemies,player-life,actors,spatial,presentation,composition,game-view-model,contracts,sound-assets}.ts",
+				],
+				excludeFiles: ["**/*.test.ts", "**/*.spec.ts"],
+				rules: {
+					"no-restricted-imports": [
+						"error",
+						{
+							patterns: [
+								{
+									regex: "(^|/)(assets|audio|input|pixi-view)(\\.[cm]?[jt]sx?)?$",
+									message: "Headless modules must use ports, not browser adapters.",
+								},
+								{
+									group: ["pixi.js", "pixi.js/**"],
+									message: "Keep Pixi imports in browser adapters.",
+								},
+							],
+						},
+					],
+					"no-restricted-globals": [
+						"error",
+						{
+							checkGlobalObject: true,
+							globals: [
+								"window",
+								"document",
+								"self",
+								"navigator",
+								"location",
+								"requestAnimationFrame",
+								"cancelAnimationFrame",
+								"addEventListener",
+								"removeEventListener",
+								"Audio",
+								"AudioContext",
+								"Image",
+								"localStorage",
+								"sessionStorage",
+							],
+						},
+					],
+				},
+			},
 			{
 				files: ["e2e/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}"],
 				rules: {

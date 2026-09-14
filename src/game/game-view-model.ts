@@ -1,25 +1,9 @@
-import { EntityRef, World } from "../ecs/facade.ts";
-import {
-	Aim,
-	AimGun,
-	DashState,
-	FoeTag,
-	Facing,
-	Gun,
-	Health,
-	PlayerTag,
-	Position,
-	Sprite,
-	Velocity,
-} from "./components.ts";
+import type { World } from "../ecs/facade.ts";
 import type { AudioPort, RandomPort } from "./contracts.ts";
-import { SFX } from "./sound-assets.ts";
-
-const INITIAL_FOE_POSITIONS = [-140, 120, 190] as const;
-const RANDOM_FOE_MIN_X = -160;
-const RANDOM_FOE_WIDTH = 320;
-const RESPAWN_DELAY = 2;
-const REINFORCEMENT_DELAY = 3;
+import { EnemyPopulation } from "./enemies.ts";
+import { PlayerLife } from "./player-life.ts";
+import { Sprite } from "./presentation.ts";
+import { Facing, Position, Velocity } from "./spatial.ts";
 
 export interface GameViewModelOptions {
 	readonly world: World;
@@ -53,65 +37,60 @@ export interface RenderProjection {
 
 export class GameViewModel {
 	private readonly world: World;
-	private player: EntityRef | undefined;
+	private readonly player: PlayerLife;
+	private readonly enemies: EnemyPopulation;
 	private started = false;
 	private disposed = false;
-	private deadTimer = 0;
-	private emptyTimer = 0;
-	private previousHealth = 100;
-	private previousFoeCount: number = INITIAL_FOE_POSITIONS.length;
-	private readonly initialFoePositions: readonly number[];
 
-	constructor(private readonly options: GameViewModelOptions) {
-		this.initialFoePositions = options.initialFoePositions ?? INITIAL_FOE_POSITIONS;
-		this.previousFoeCount = this.initialFoePositions.length;
+	constructor(options: GameViewModelOptions) {
 		this.world = options.world;
+		this.player = new PlayerLife(options.world, options.audio);
+		this.enemies = new EnemyPopulation(
+			options.world,
+			options.audio,
+			options.random,
+			options.initialFoePositions,
+		);
 	}
 
 	start(): void {
 		this.ensureNotDisposed();
 		if (this.started) return;
-		this.player = this.spawnPlayer();
-		for (const x of this.initialFoePositions) this.spawnFoeAt(x);
+		this.player.start();
+		this.enemies.start();
 		this.started = true;
 	}
 
 	tick(dt: number): void {
 		this.ensureStarted();
 		this.world.update(dt);
-
-		const alive = this.player?.isAlive() ?? false;
-		const health = alive ? (this.player?.get(Health)?.value ?? 0) : 0;
-		const foeCount = this.foeCount();
-		this.playStateSounds(health, foeCount, alive);
-		this.updateRespawn(alive, dt);
-		this.updateReinforcements(foeCount, dt);
+		const { alive, health } = this.player.read();
+		const count = this.enemies.count();
+		// Observe this frame before either feature creates next-frame actors.
+		this.player.observe(health, alive);
+		this.enemies.observe(count);
+		this.player.respawn(alive, dt);
+		this.enemies.reinforce(count, dt);
 	}
 
 	damagePlayer(amount: number): void {
 		this.ensureStarted();
-		if (!this.player?.isAlive()) return;
-		const health = this.player.get(Health);
-		if (!health) return;
-		this.player.set(Health, { value: health.value - amount });
-		this.options.audio.play(SFX.hurt, 0.5);
+		this.player.damage(amount);
 	}
 
 	spawnFoe(): void {
 		this.ensureStarted();
-		this.spawnFoeAt(RANDOM_FOE_MIN_X + this.options.random.next() * RANDOM_FOE_WIDTH);
+		this.enemies.spawn();
 	}
 
 	getHudProjection(): HudProjection {
 		this.ensureStarted();
-		const alive = this.player?.isAlive() ?? false;
-		const playerX = alive ? (this.player?.get(Position)?.x ?? null) : null;
-		const projection = {
-			playerHealth: alive ? (this.player?.get(Health)?.value ?? 0) : ("dead" as const),
-			foeCount: this.foeCount(),
-			playerX,
-		};
-		return Object.freeze(projection);
+		const { alive, health, x } = this.player.read();
+		return Object.freeze({
+			playerHealth: alive ? health : "dead",
+			foeCount: this.enemies.count(),
+			playerX: x,
+		});
 	}
 
 	getRenderProjection(): RenderProjection {
@@ -142,71 +121,10 @@ export class GameViewModel {
 	}
 
 	dispose(): void {
-		if (this.disposed) return;
+		this.player.dispose();
+		this.enemies.dispose();
+		this.started = false;
 		this.disposed = true;
-		this.player = undefined;
-		this.deadTimer = 0;
-		this.emptyTimer = 0;
-	}
-
-	private spawnPlayer(): EntityRef {
-		return this.world.spawn(
-			new Position(0, 40),
-			new Velocity(0, 0),
-			new Health(100),
-			new Sprite("player"),
-			new PlayerTag(),
-			new Gun(),
-			new AimGun(),
-			new Facing(),
-			new Aim(),
-			new DashState(),
-		);
-	}
-
-	private spawnFoeAt(x: number): void {
-		this.world.spawn(
-			new Position(x, 0),
-			new Velocity(0, 0),
-			new Health(3),
-			new Sprite("zombie"),
-			new FoeTag(),
-		);
-	}
-
-	private foeCount(): number {
-		return this.world.query({ position: Position, foe: FoeTag }).count;
-	}
-
-	private playStateSounds(health: number, foeCount: number, alive: boolean): void {
-		if (health < this.previousHealth && alive) this.options.audio.play(SFX.hurt, 0.4);
-		if (foeCount < this.previousFoeCount) this.options.audio.play(SFX.foeDown, 0.5);
-		this.previousHealth = health;
-		this.previousFoeCount = foeCount;
-	}
-
-	private updateRespawn(alive: boolean, dt: number): void {
-		if (alive) return;
-		this.deadTimer += dt;
-		if (this.deadTimer <= RESPAWN_DELAY) return;
-		this.deadTimer = 0;
-		this.player = this.spawnPlayer();
-		this.previousHealth = 100;
-		this.options.audio.play(SFX.respawn, 0.5);
-	}
-
-	private updateReinforcements(foeCount: number, dt: number): void {
-		if (foeCount > 0) {
-			this.emptyTimer = 0;
-			return;
-		}
-		this.emptyTimer += dt;
-		if (this.emptyTimer <= REINFORCEMENT_DELAY) return;
-		this.emptyTimer = 0;
-		this.spawnFoeAt(-160);
-		this.spawnFoeAt(160);
-		this.previousFoeCount = 2;
-		this.options.audio.play(SFX.coin, 0.5);
 	}
 
 	private ensureStarted(): void {

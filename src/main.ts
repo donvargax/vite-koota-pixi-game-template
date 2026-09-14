@@ -5,7 +5,7 @@ import type { RandomPort } from "./game/contracts.ts";
 import { GameViewModel } from "./game/game-view-model.ts";
 import { KeyboardInput } from "./game/input.ts";
 import { PixiView } from "./game/pixi-view.ts";
-import { createGameSystems } from "./game/systems.ts";
+import { createGameSystems } from "./game/composition.ts";
 
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <main style="font-family: system-ui; color: #e6edf3; background: #0b1020; min-height: 100vh; padding: 24px">
