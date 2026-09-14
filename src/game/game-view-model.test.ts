@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { World } from "../ecs/design2.ts";
+import { World } from "../ecs/facade.ts";
 import type { AudioPort, Direction2D, InputPort, RandomPort } from "./contracts.ts";
 import { SFX } from "./sound-assets.ts";
 import { GameViewModel } from "./game-view-model.ts";

@@ -20,13 +20,13 @@ The API borrows the shape of Aurelia's developer experience without bringing in
 the Aurelia Kernel or a runtime object container. Construction remains visible at
 the composition root, where ownership and system order can be inspected.
 
-## Design options
+## Alternatives considered
 
 The alternatives were evaluated against `bitECS`, `koota`, `becsy`, and
 `miniplex` for the same requirements: TypeScript, renderer independence, and
 spawn, destroy, query, and update operations for a 2D metroidvania.
 
-### Design 1: Minimal core
+### Minimal core
 
 The minimal design exposes `createWorld`, `defineComponent`, `spawn`, `destroy`,
 `add/get/has`, `query`, and `update(world, dt, systems)`. Entities are numbers,
@@ -35,7 +35,7 @@ caller order. It is small and easy to test, with `O(n)` queries, but has no
 scheduling or lifecycle model. Its shape is closest to `mreinstein/ecs` and
 `bitECS`.
 
-### Design 2: Aurelia-inspired facade, chosen
+### ECS facade, chosen
 
 The chosen design uses `@component` classes, `@system({ priority })` metadata,
 constructor-injected queries and service ports, and a `World.create(factory)`
@@ -43,7 +43,7 @@ composition API. Each World installs its own system instances and query objects.
 Koota traits and handles stay behind the ECS facade. Query results expose named
 component objects that are write-through proxies over snapshot copies.
 
-### Design 3: Full kit
+### Full kit
 
 The full design adds typed schemas, `All/Any/None/Added/Changed/Rel` query
 algebra, relations such as `ChildOf` and `Contains`, inherited prefabs,
@@ -54,31 +54,32 @@ steeper learning curve.
 
 ## Comparison
 
-- **Simplicity:** Design 1 has the smallest surface, Design 2 adds two decorators
-  and scoped lifecycle management, and Design 3 adds schemas and scheduling
-  algebra.
-- **Depth:** Design 2 hides the backend, query wiring, and lifecycle behind a
-  small game-facing facade without hiding construction from the composition root.
-- **Query model:** Design 1 uses call-site arguments, Design 2 uses named query
-  specs such as `{ position: Position, velocity: Velocity }`, and Design 3 uses
-  query algebra.
-- **Time model:** Designs 1 and 2 use a single `dt`; Design 3 separates fixed and
-  variable updates and exposes interpolation state.
-- **Performance:** Design 1 is fastest per operation. Design 2 pays for proxies
-  and `set()` calls on field writes, which is negligible at the current entity
-  counts. Design 3 pays the cost of a larger API and compiler or schema tooling.
+- **Simplicity:** The minimal core has the smallest surface. The facade adds two
+  decorators and scoped lifecycle management. The full kit adds schemas and
+  scheduling algebra.
+- **Depth:** The facade hides the backend, query wiring, and lifecycle behind a
+  small game-facing API without hiding construction from the composition root.
+- **Query model:** The minimal core uses call-site arguments, the facade uses
+  named query specs such as `{ position: Position, velocity: Velocity }`, and the
+  full kit uses query algebra.
+- **Time model:** The minimal core and facade use a single `dt`; the full kit
+  separates fixed and variable updates and exposes interpolation state.
+- **Performance:** The minimal core is fastest per operation. The facade pays for
+  proxies and `set()` calls on field writes, which is negligible at the current
+  entity counts. The full kit pays the cost of a larger API and compiler or
+  schema tooling.
 
-## Why Design 2
+## Why this facade
 
 1. It reads like the framework the team knows while keeping construction and
    ownership inspectable through constructor arguments and explicit composition.
 2. Named query specs make system code readable without relying on component
    position. The facade can still move from Koota to archetypes or SoA storage
    without changing game code.
-3. The current entity counts are in the hundreds, so Design 1 does not save
-   anything the game needs yet. It would push ordering and lifecycle onto every
-   caller.
-4. Design 3 is a reasonable second system. Its pieces are tracked in `TODO.md`
+3. The current entity counts are in the hundreds, so the minimal core does not
+   save anything the game needs yet. It would push ordering and lifecycle onto
+   every caller.
+4. The full kit is a reasonable later system. Its pieces are tracked in `TODO.md`
    instead of being adopted up front.
 
 ## Lifecycle
@@ -102,7 +103,7 @@ Priority ties preserve the order returned by the composition function.
   `components.position` and `components.velocity`; the result type is derived
   from the spec.
 - `EntityRef`, `Query`, and component declarations are the game-facing API.
-  Koota is imported only by `src/ecs/design2.ts`.
+  Koota is imported only by `src/ecs/facade.ts`.
 - `entity.get()` returns a snapshot copy. Use `entity.set()` or the live named
   query components to write state.
 - The backend can change without exposing Koota entities or storage internals to

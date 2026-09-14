@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { GameSystem, World, component, system, type Query } from "./design2.ts";
+import { GameSystem, World, component, system, type Query } from "./facade.ts";
 
 @component()
 class Position {
@@ -63,7 +63,7 @@ class Death extends GameSystem {
 	}
 }
 
-describe("design2 (scoped ECS)", () => {
+describe("ECS facade", () => {
 	it("creates a World before composing system instances and queries", () => {
 		let factoryWorld: World | undefined;
 		const positions: number[] = [];

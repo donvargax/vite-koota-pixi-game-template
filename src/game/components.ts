@@ -1,4 +1,4 @@
-import { component } from "../ecs/design2.ts";
+import { component } from "../ecs/facade.ts";
 
 @component()
 export class Position {

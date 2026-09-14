@@ -28,7 +28,7 @@ vp check               # format + lint + typecheck, all must pass
 
 | Path                            | What                                                      |
 | ------------------------------- | --------------------------------------------------------- |
-| `src/ecs/design2.ts`            | ECS facade; the only module that imports Koota            |
+| `src/ecs/facade.ts`             | ECS facade; the only module that imports Koota            |
 | `src/game/components.ts`        | Component classes containing flat model data              |
 | `src/game/systems.ts`           | Systems and the `createGameSystems` composition function  |
 | `src/game/game-view-model.ts`   | Headless game coordinator and immutable projections       |
@@ -73,7 +73,7 @@ The working examples are in the source rather than duplicated here:
   `health` before destroying an entity.
 - `createGameSystems` in [`systems.ts`](src/game/systems.ts) shows how a World
   receives named queries and service ports during composition.
-- [`design2.test.ts`](src/ecs/design2.test.ts) exercises the ECS facade directly,
+- [`facade.test.ts`](src/ecs/facade.test.ts) exercises the ECS facade directly,
   including components, named queries, scheduling, and World isolation.
 
 Browser capabilities are TypeScript contracts (`InputPort`, `AudioPort`, and

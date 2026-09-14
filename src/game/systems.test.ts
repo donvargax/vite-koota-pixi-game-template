@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { World } from "../ecs/design2.ts";
+import { World } from "../ecs/facade.ts";
 import {
 	Aim,
 	AimGun,

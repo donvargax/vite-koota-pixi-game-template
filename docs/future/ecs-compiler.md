@@ -1,21 +1,21 @@
-# Future idea: ECS compiler that makes Design 2/3 as fast as Design 1
+# Future idea: compile the ECS facade for lower overhead
 
 Status: **DEFERRED**. Entry criterion is profiler evidence of sustained
 pressure at 10k+ entities (see the frame-time profiling slice in `TODO.md`),
-not elegance. See also `docs/design.md` for why Design 2 was chosen
+not elegance. See also `docs/design.md` for why the ECS facade was chosen
 without it. This remains a design note, not an implementation commitment.
 
 ## Goal
 
-Keep the source ergonomics of Design 2 (Aurelia-inspired decorators and
-constructor-visible dependencies) and Design 3 (schema + scheduling + snapshots),
-but compile hot paths down to Design 1 performance (SoA TypedArrays, cached
-queries, zero alloc in loop).
+Keep the source ergonomics of the ECS facade (Aurelia-inspired decorators and
+constructor-visible dependencies), with a possible future full-kit layer for
+schemas, scheduling, and snapshots. Compile hot paths down to minimal-core
+performance (SoA TypedArrays, cached queries, zero allocation in the loop).
 
 Models: Svelte (framework disappears) for full codegen, React Compiler
 (auto-memoize queries) for cheap wins.
 
-## What is fast in Design 1
+## Performance target
 
 1. SoA TypedArrays: `Position.x[eid]` contiguous.
 2. No allocation in loop: cached query arrays, no tuples/iterators/Proxies.

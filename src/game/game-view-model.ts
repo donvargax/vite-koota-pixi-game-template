@@ -1,4 +1,4 @@
-import { EntityRef, World } from "../ecs/design2.ts";
+import { EntityRef, World } from "../ecs/facade.ts";
 import {
 	Aim,
 	AimGun,

@@ -14,7 +14,7 @@
 		"moduleDetection": "force",
 		"noEmit": true,
 
-		/* Decorators for Design 2 (Aurelia-style ECS) */
+		/* Decorators for the Aurelia-style ECS facade */
 		"experimentalDecorators": true,
 		"emitDecoratorMetadata": false,
 

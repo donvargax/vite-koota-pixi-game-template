@@ -1,5 +1,5 @@
 import "./style.css";
-import { World } from "./ecs/design2.ts";
+import { World } from "./ecs/facade.ts";
 import { HtmlAudio } from "./game/audio.ts";
 import type { RandomPort } from "./game/contracts.ts";
 import { GameViewModel } from "./game/game-view-model.ts";

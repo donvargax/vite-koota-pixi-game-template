@@ -1,4 +1,4 @@
-import { GameSystem, system, type Query, type World } from "../ecs/design2.ts";
+import { GameSystem, system, type Query, type World } from "../ecs/facade.ts";
 import { SFX } from "./assets.ts";
 import type { AudioPort, InputPort } from "./contracts.ts";
 import {
