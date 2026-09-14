@@ -23,15 +23,15 @@ Models: Svelte (framework disappears) for full codegen, React Compiler
 
 ## Source -> prod mapping (proposed)
 
-| Source (you write)                                  | Prod (compiler emits)                                            |
-| --------------------------------------------------- | ---------------------------------------------------------------- |
-| `@component class Position { x = 0 }`               | `Position = { x: Float32Array(CAP), y: ... }` + schema for saves |
-| `constructor(targets: Query<[Position, Velocity]>)` | hoisted query cache, with the same facade query shape            |
-| `for (const { comps: [p, v] } of targets)`          | `for (i...) { eid=dense[i]; px[eid]... }`                        |
-| `world.spawn(new Position(x))`                      | `eid=alloc(); px[eid]=x` (memcpy defaults)                       |
-| `entity.get/set/has/destroy()`                      | direct index / `destroy(eid)`                                    |
-| `createGameSystems(world, input, audio)`            | specialized instance construction and query setup                |
-| `before/after` DAG literals                         | topological sort at build time                                   |
+| Source (you write)                                                        | Prod (compiler emits)                                            |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `@component class Position { x = 0 }`                                     | `Position = { x: Float32Array(CAP), y: ... }` + schema for saves |
+| `constructor(targets: Query<{ position: Position; velocity: Velocity }>)` | hoisted query cache, with the same facade query shape            |
+| `for (const { components: { position: p, velocity: v } } of targets)`     | `for (i...) { eid=dense[i]; px[eid]... }`                        |
+| `world.spawn(new Position(x))`                                            | `eid=alloc(); px[eid]=x` (memcpy defaults)                       |
+| `entity.get/set/has/destroy()`                                            | direct index / `destroy(eid)`                                    |
+| `createGameSystems(world, input, audio)`                                  | specialized instance construction and query setup                |
+| `before/after` DAG literals                                               | topological sort at build time                                   |
 
 The current runtime is a validated Koota-backed facade. A future compiler may
 strip checks and allocations in a production backend, but compiled output must
@@ -43,13 +43,12 @@ Prior art: `bevy_ecs` derive macros, `becsy` `new Function()` bindings,
 
 ## What cannot be compiled (keep runtime fallback)
 
-- Dynamic composition: `query(...dynamicList)`, conditional `add()`.
+- Dynamic composition: runtime-built query specs, conditional `add()`.
 - Dynamic composition: runtime-selected system graphs and query type lists stay
   on the runtime fallback path.
 - `observe(e => closure)` + coroutines capturing locals (stay AoS).
 - Name-inferred magic (`e.position` from class name) is forbidden; the compiler
-  needs explicit query constructor arguments and must preserve the facade
-  boundary.
+  needs explicit named query specs and must preserve the facade boundary.
 
 ## Pragmatic path
 

@@ -8,13 +8,13 @@ constructors and composition functions.
 
 ## Principle → ECS mapping
 
-| Aurelia 2 principle             | How it appears here                                                                               |
-| ------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Plain classes, no base-type tax | Components are flat-data classes; systems extend a tiny `GameSystem` with optional hooks          |
-| Decorators declare intent       | `@component` marks data and `@system({ priority })` records ordering                              |
-| Explicit construction           | `World.create` and `createGameSystems` pass queries, ports, and capabilities through constructors |
-| Convention over configuration   | Class fields are the schema; a no-field class is a tag; the lifecycle is the three hooks          |
-| Explicit over magic             | Queries list their types in `world.query(Position, Velocity)`, never infer them from names        |
+| Aurelia 2 principle             | How it appears here                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Plain classes, no base-type tax | Components are flat-data classes; systems extend a tiny `GameSystem` with optional hooks                           |
+| Decorators declare intent       | `@component` marks data and `@system({ priority })` records ordering                                               |
+| Explicit construction           | `World.create` and `createGameSystems` pass queries, ports, and capabilities through constructors                  |
+| Convention over configuration   | Class fields are the schema; a no-field class is a tag; the lifecycle is the three hooks                           |
+| Explicit over magic             | Queries name their types in `world.query({ position: Position, velocity: Velocity })`, never infer them from names |
 
 ## Lifecycle
 
@@ -43,7 +43,7 @@ games think in frames, so systems implement any of:
   SoA storage; see the compiler note in `docs/future/ecs-compiler.md`).
 - Add behavior: a `@system({ priority })` class with constructor parameters for
   its `Query` values and service ports, plus an `execute(dt)` method.
-- Read in loops via `Query` tuples (live, write-through). Read once via
+- Read in loops via named `Query` components (live, write-through). Read once via
   `entity.get()` (snapshot copy — do not mutate it; use `set()`).
 - Spawn with instances: `world.spawn(new Position(x, y), new Health(30))`.
 - Give every World explicit instances: `World.create((world) =>

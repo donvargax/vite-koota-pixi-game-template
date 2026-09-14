@@ -18,8 +18,8 @@ events. Closest to `mreinstein/ecs` / `bitECS` philosophy.
 `@component` classes, `@system({ priority })` metadata,
 constructor-injected queries and service ports, and a `World.create(factory)`
 composition API. Each World installs its own system instances and query objects.
-Koota traits and handles stay behind the ECS facade; query tuples are write-through
-proxies over snapshot copies.
+Koota traits and handles stay behind the ECS facade; named query components are
+write-through proxies over snapshot copies.
 
 ## Design 3 — Full kit (schema + scheduling + saves)
 

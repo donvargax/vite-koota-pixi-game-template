@@ -64,36 +64,23 @@ Components are decorated classes holding only flat data. Systems receive their
 queries and service ports through constructors and run by priority. Equal
 priorities preserve the order returned by the composition function.
 
-```ts
-@component()
-class Health {
-	value = 100;
-}
+The working examples are in the source rather than duplicated here:
 
-@system({ priority: 20 })
-class Death extends GameSystem {
-	constructor(private readonly dying: Query<[Health]>) {
-		super();
-	}
-
-	execute(): void {
-		for (const { entity, comps } of this.dying) {
-			if (comps[0].value <= 0) entity.destroy();
-		}
-	}
-}
-
-const world = World.create((world) => [new Death(world.query(Health))]);
-world.spawn(new Position(0, 0), new Health(30));
-world.update(dt);
-world.dispose();
-```
+- [`components.ts`](src/game/components.ts) shows data components such as
+  `Position` and `Health`, plus tag components such as `PlayerTag` and `FoeTag`.
+- [`systems.ts`](src/game/systems.ts) shows systems with named queries. `Movement`
+  reads `position` and `velocity`, `AimSystem` updates `aim`, and `Death` reads
+  `health` before destroying an entity.
+- `createGameSystems` in [`systems.ts`](src/game/systems.ts) shows how a World
+  receives named queries and service ports during composition.
+- [`design2.test.ts`](src/ecs/design2.test.ts) exercises the ECS facade directly,
+  including components, named queries, scheduling, and World isolation.
 
 Browser capabilities are TypeScript contracts (`InputPort`, `AudioPort`, and
 `RandomPort`). `createGameSystems(world, input, audio)` passes the needed ports,
 queries, and spawn capability to each system. `EntityRef` and `Query` expose the
 operations game code needs without exposing Koota handles. `entity.get()` returns
-a snapshot copy; write through `set()` or the live query tuples.
+a snapshot copy; write through `set()` or the named live query components.
 
 ## Test styles
 
