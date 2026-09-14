@@ -1,0 +1,79 @@
+name: Performance nightly
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-nightly
+  cancel-in-progress: false
+
+jobs:
+  performance-nightly:
+    name: Full performance collection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      PERF_OUTPUT: performance-results/nightly-${{ github.run_id }}
+      PERF_TRUSTED_INPUTS: performance-results/nightly-trusted-inputs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: voidzero-dev/setup-vp@v0.3.1
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp install
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run typecheck:performance
+      - name: Prepare trusted main inputs
+        run: |
+          set -euo pipefail
+          mkdir -p "$PERF_TRUSTED_INPUTS"
+          cp performance/budgets.json "$PERF_TRUSTED_INPUTS/budgets.json"
+          cp performance/scenarios.json "$PERF_TRUSTED_INPUTS/scenarios.json"
+          if [ -f performance/baselines/ci.json ]; then
+            cp performance/baselines/ci.json "$PERF_TRUSTED_INPUTS/baseline.json"
+          else
+            printf '%s\n' "No accepted CI baseline exists on trusted main." > "$PERF_TRUSTED_INPUTS/baseline-missing.txt"
+          fi
+      - name: Collect full performance history and evidence
+        run: |
+          vp run perf:full --collect \
+            --policy "$PERF_TRUSTED_INPUTS/budgets.json" \
+            --baseline "$PERF_TRUSTED_INPUTS/baseline.json" \
+            --required-scenarios "$PERF_TRUSTED_INPUTS/scenarios.json" \
+            --output "$PERF_OUTPUT"
+      # Repository or organization retention caps may shorten this 90-day request;
+      # upload-artifact reports a denied request explicitly in the workflow log.
+      - name: Upload nightly compact metrics and history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-nightly-metrics-${{ github.run_id }}
+          path: |
+            ${{ env.PERF_OUTPUT }}/results.json
+            ${{ env.PERF_OUTPUT }}/summary.md
+            ${{ env.PERF_OUTPUT }}/artifact-manifest.json
+            ${{ env.PERF_OUTPUT }}/measurements/**
+            ${{ env.PERF_OUTPUT }}/build/build-manifest.json
+          retention-days: 90
+          if-no-files-found: ignore
+          include-hidden-files: false
+      # Keep the exact optimized JavaScript and maps beside every profile bundle.
+      # The shorter retention limits storage while preserving reproducible evidence.
+      - name: Upload nightly diagnostics and source maps
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-nightly-evidence-${{ github.run_id }}
+          path: |
+            ${{ env.PERF_OUTPUT }}/diagnostics/**
+            ${{ env.PERF_OUTPUT }}/build/**/*.js
+            ${{ env.PERF_OUTPUT }}/build/**/*.map
+          retention-days: 14
+          if-no-files-found: ignore
+          include-hidden-files: false

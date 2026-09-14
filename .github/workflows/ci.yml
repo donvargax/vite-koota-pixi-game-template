@@ -36,3 +36,76 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
           include-hidden-files: false
+
+  performance-collection:
+    name: Performance collection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      PERF_OUTPUT: performance-results/ci-${{ github.run_id }}
+      PERF_TRUSTED_INPUTS: performance-results/ci-trusted-inputs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: voidzero-dev/setup-vp@v0.3.1
+        with:
+          node-version: "24"
+          cache: true
+      - run: vp install
+      - run: vp exec playwright install --with-deps chromium
+      - run: vp run typecheck:performance
+      - name: Prepare trusted performance inputs
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          trusted_ref=HEAD
+          if [ -n "${GITHUB_BASE_REF:-}" ]; then
+            git fetch --no-tags --depth=1 origin "refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+            trusted_ref="origin/${GITHUB_BASE_REF}"
+          fi
+
+          mkdir -p "$PERF_TRUSTED_INPUTS"
+          git show "${trusted_ref}:performance/budgets.json" > "$PERF_TRUSTED_INPUTS/budgets.json"
+          git show "${trusted_ref}:performance/scenarios.json" > "$PERF_TRUSTED_INPUTS/scenarios.json"
+          if git cat-file -e "${trusted_ref}:performance/baselines/ci.json"; then
+            git show "${trusted_ref}:performance/baselines/ci.json" > "$PERF_TRUSTED_INPUTS/baseline.json"
+          else
+            printf '%s\n' "No accepted CI baseline exists on the trusted base revision." > "$PERF_TRUSTED_INPUTS/baseline-missing.txt"
+          fi
+      - name: Collect fast performance candidate
+        run: |
+          vp run perf --collect \
+            --policy "$PERF_TRUSTED_INPUTS/budgets.json" \
+            --baseline "$PERF_TRUSTED_INPUTS/baseline.json" \
+            --required-scenarios "$PERF_TRUSTED_INPUTS/scenarios.json" \
+            --output "$PERF_OUTPUT"
+      - name: Upload performance collection candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-collection-candidate-${{ github.run_id }}
+          path: |
+            ${{ env.PERF_OUTPUT }}/results.json
+            ${{ env.PERF_OUTPUT }}/summary.md
+            ${{ env.PERF_OUTPUT }}/artifact-manifest.json
+            ${{ env.PERF_OUTPUT }}/measurements/**
+            ${{ env.PERF_OUTPUT }}/build/build-manifest.json
+          retention-days: 90
+          if-no-files-found: ignore
+          include-hidden-files: false
+      - name: Upload performance diagnostics and build maps
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-diagnostics-${{ github.run_id }}
+          path: |
+            ${{ env.PERF_OUTPUT }}/diagnostics/**
+            ${{ env.PERF_OUTPUT }}/build/**/*.js
+            ${{ env.PERF_OUTPUT }}/build/**/*.map
+          retention-days: 14
+          if-no-files-found: ignore
+          include-hidden-files: false
