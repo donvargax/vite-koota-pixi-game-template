@@ -192,6 +192,9 @@ importers:
         specifier: ^8.20.1
         version: 8.20.1
     devDependencies:
+      '@jridgewell/trace-mapping':
+        specifier: ^0.3.31
+        version: 0.3.31
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0

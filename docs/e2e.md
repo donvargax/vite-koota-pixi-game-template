@@ -60,6 +60,28 @@ attributes or `window.__game` hooks. The E2E lint override rejects imports with 
 `src` path segment. Review still needs to catch runtime access and any future
 aliases that bypass that rule.
 
+The performance surface is separate from gameplay E2E. Performance tests use
+`performance.html`, a production-optimized build, and an independent
+Playwright/CDP runner. They may observe browser timing APIs, User Timing
+entries, visible benchmark DOM, browser errors, and the host CDP timing,
+profiling, tracing, and heap-boundary protocols defined by the performance
+contract. Those observations are runner instrumentation, not permission to
+inspect ECS/Pixi objects or call hidden game methods.
+
+Performance tests use a fresh browser context and page for every repetition and
+diagnostic replay. They run one worker with one active workload and do not
+reuse a live world or renderer between repetitions. The performance fixture
+does not install the gameplay fake clock; workload input uses bounded real-time
+gestures and the shared performance input scheduler. Readiness, build identity,
+focused visible canvas, and sample completion must be visible through the
+dedicated page.
+
+The ordinary page remains prohibited from exposing runtime controllers,
+telemetry globals, hidden state attributes, entity injection, or benchmark
+controls. Normal gameplay steps continue to use only keyboard/mouse input,
+navigation, displayed HUD values, canvas screenshots, and the existing
+gameplay clock behavior.
+
 Each scenario gets a fresh browser context and navigates to the ordinary game
 page. The arena already has a fixed starting layout. Random spawn controls are
 not used to set up gameplay scenarios.
@@ -118,6 +140,13 @@ and shooting with ordinary browser timing. Its bounded gestures tolerate some
 variation, but very low frame rates can still fail a scenario. Diagnose the
 trace and video rather than adding retries or silently lengthening every wait.
 
+Performance runs are independent of both existing projects. The performance
+fixture starts from the runner-provided production preview and checks the exact
+expected build ID before collecting. Clean measurements use real browser time;
+CPU/trace and allocation replays use fresh contexts and never feed their timing
+back into a clean verdict. A stalled page, dropped sample, wrong build, hidden
+page, or missing completion is an invalid performance result, not a zero.
+
 ## Visual baselines
 
 Jumping verifies three views: grounded, airborne, then grounded again. Reviewed
@@ -157,6 +186,24 @@ the damage button belongs only to demo smoke coverage.
 
 Exact physics and ECS behavior remain in Vitest. Add browser coverage for a
 player-facing outcome, not a duplicate assertion about an internal component.
+
+## Planned Performance Commands
+
+The following commands are planned and are not implemented until the numbered
+performance-plan steps that own them are complete:
+
+```sh
+vp run perf
+vp run perf:diagnose --scenario <id>
+vp run perf:full
+vp run perf:baseline --from <run-dir> --accept
+```
+
+They run alongside ordinary `vp run e2e`; they do not replace or alter the
+gameplay projects above. CI will invoke the performance command separately
+after the production performance build, fixture, validity gate, comparison,
+and trusted-input wiring are implemented. Until then, readers must not infer
+that these commands exist or that a gameplay E2E pass is a performance result.
 
 References: [Playwright-BDD](https://vitalets.github.io/playwright-bdd/),
 [browser clock](https://playwright.dev/docs/clock),

@@ -28,6 +28,7 @@
 		"pixi.js": "^8.20.1"
 	},
 	"devDependencies": {
+		"@jridgewell/trace-mapping": "^0.3.31",
 		"@playwright/test": "^1.63.0",
 		"@types/node": "^24.13.4",
 		"@vitest/coverage-v8": "catalog:",

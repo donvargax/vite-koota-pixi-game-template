@@ -15,6 +15,9 @@ coverage/
 test-results/
 playwright-report/
 e2e/.features-gen/
+performance-results/
+performance-baselines.local/
+dist-performance/
 
 # Editor directories and files
 .vscode/*
