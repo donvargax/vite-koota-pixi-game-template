@@ -15,6 +15,12 @@ const TILE = 16;
 const toScreenX = (x: number): number => ORIGIN_X + x;
 const toScreenY = (y: number): number => GROUND_SCREEN_Y - y;
 
+export interface RendererMetadata {
+	readonly renderer: string | null;
+	readonly backend: string | null;
+	readonly gpu: string | null;
+}
+
 function zombieFrame(tick: number): TexKey {
 	return tick % 2 === 0 ? "zombie_walk1" : "zombie_walk2";
 }
@@ -40,19 +46,46 @@ export class PixiView {
 	private app: PIXI.Application | undefined;
 	private textures: Record<TexKey, PIXI.Texture> | undefined;
 	private nodes = new Map<number, PIXI.Sprite>();
+	private lifecycle: "idle" | "mounting" | "mounted" | "disposed" = "idle";
+	private readonly initializedApps = new WeakSet<PIXI.Application>();
+	private readonly destroyedApps = new WeakSet<PIXI.Application>();
 
 	async mount(parent: HTMLElement): Promise<void> {
-		this.app = new PIXI.Application();
-		await this.app.init({ background: 0x0b1020, resizeTo: parent, autoStart: false });
-		parent.appendChild(this.app.canvas);
-		this.textures = await loadTextures();
-		this.buildStage();
+		if (this.lifecycle !== "idle") {
+			throw new Error("PixiView mount is only allowed once");
+		}
+		this.lifecycle = "mounting";
+		const app = new PIXI.Application();
+		this.app = app;
+
+		try {
+			await app.init({ background: 0x0b1020, resizeTo: parent, autoStart: false });
+			this.initializedApps.add(app);
+			if (!this.isCurrent(app)) {
+				this.destroyApp(app);
+				return;
+			}
+
+			parent.appendChild(app.canvas);
+			const textures = await loadTextures();
+			if (!this.isCurrent(app)) {
+				this.destroyApp(app);
+				return;
+			}
+
+			this.textures = textures;
+			this.buildStage();
+			this.lifecycle = "mounted";
+		} catch (error) {
+			this.destroyApp(app);
+			throw error;
+		}
 	}
 
 	render(projection: RenderProjection, nowMs: number): void {
 		const app = this.app;
 		const tex = this.textures;
-		if (!app || !tex) return;
+		if (this.lifecycle !== "mounted" || !app || !tex) return;
 		const tick = Math.floor(nowMs / 180);
 		const alive = new Set<number>();
 		for (const entity of projection.entities) {
@@ -63,12 +96,32 @@ export class PixiView {
 		app.render();
 	}
 
+	getRendererMetadata(): RendererMetadata {
+		const renderer = this.app?.renderer;
+		return Object.freeze({
+			renderer: renderer?.name ?? null,
+			backend: null,
+			gpu: null,
+		});
+	}
+
 	dispose(): void {
+		if (this.lifecycle === "disposed") return;
+		this.lifecycle = "disposed";
 		const app = this.app;
 		this.app = undefined;
 		this.textures = undefined;
 		this.nodes.clear();
-		if (!app) return;
+		if (app && this.initializedApps.has(app)) this.destroyApp(app);
+	}
+
+	private isCurrent(app: PIXI.Application): boolean {
+		return this.lifecycle !== "disposed" && this.app === app;
+	}
+
+	private destroyApp(app: PIXI.Application): void {
+		if (this.destroyedApps.has(app)) return;
+		this.destroyedApps.add(app);
 		app.ticker.stop();
 		app.destroy({ removeView: true }, { children: true });
 	}

@@ -18,5 +18,12 @@ test("ECS playground boots and simulates", async ({ page }) => {
 	await page.getByRole("button", { name: "Damage player (25)" }).click();
 	await expect.poll(async () => Number(await page.locator("#hp").textContent())).toBe(75);
 	await expect(page.locator("#stage canvas")).toBeVisible();
+
+	await page.reload();
+	await expect(page.getByText("Terrariavania — sprite demo")).toBeVisible();
+	await expect(page.locator("#stage canvas")).toBeVisible();
+	await expect
+		.poll(async () => Number(await page.locator("#count").textContent()), { timeout: 15000 })
+		.toBeGreaterThan(0);
 	expect(errors, `page errors: ${errors.join("; ")}`).toEqual([]);
 });
