@@ -48,10 +48,38 @@ export class FoeTag {}
 @component()
 export class Gun {
 	cooldown = 0;
-	dir = 1;
-	constructor(cooldown = 0, dir = 1) {
+	constructor(cooldown = 0) {
 		this.cooldown = cooldown;
-		this.dir = dir;
+	}
+}
+
+@component()
+export class AimGun {
+	cooldown = 0;
+	constructor(cooldown = 0) {
+		this.cooldown = cooldown;
+	}
+}
+
+@component()
+export class Facing {
+	x = 1;
+	y = 0;
+
+	constructor(x = 1, y = 0) {
+		this.x = x;
+		this.y = y;
+	}
+}
+
+@component()
+export class Aim {
+	x = 1;
+	y = 0;
+
+	constructor(x = 1, y = 0) {
+		this.x = x;
+		this.y = y;
 	}
 }
 
@@ -62,5 +90,16 @@ export class Projectile {
 	constructor(damage = 1, life = 1) {
 		this.damage = damage;
 		this.life = life;
+	}
+}
+
+@component()
+export class DashState {
+	remaining = 0;
+	cooldown = 0;
+
+	constructor(remaining = 0, cooldown = 0) {
+		this.remaining = remaining;
+		this.cooldown = cooldown;
 	}
 }

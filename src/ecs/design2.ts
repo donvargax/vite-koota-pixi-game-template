@@ -6,6 +6,10 @@ import type { Entity as KootaEntity, Schema, Trait, World as KootaWorld } from "
 // ---------------------------------------------------------------------------
 
 type Ctor<T = object> = new (...args: never[]) => T;
+type ComponentSpec = Record<string, Ctor>;
+type ComponentsOf<S extends ComponentSpec> = {
+	[K in keyof S]: S[K] extends Ctor<infer T> ? T : never;
+};
 
 type FlatValue = number | bigint | string | boolean | null | undefined;
 type FlatDefaults = Record<string, FlatValue>;
@@ -126,27 +130,32 @@ export class EntityRef {
 	}
 }
 
-export class Query<T extends object[]> implements Iterable<{ entity: EntityRef; comps: T }> {
+export class Query<T extends object> implements Iterable<{ entity: EntityRef; components: T }> {
 	constructor(
 		private readonly source: () => EntityRef[],
-		private types: Ctor[],
+		private readonly types: readonly (readonly [string, Ctor])[],
 	) {}
 
-	*[Symbol.iterator](): Iterator<{ entity: EntityRef; comps: T }> {
+	*[Symbol.iterator](): Iterator<{ entity: EntityRef; components: T }> {
 		for (const ref of this.source()) {
-			const comps = this.types.map((ctor) => {
-				const snap: Record<string | symbol, unknown> = {
-					...(ref.get(ctor) as Record<string, unknown> | undefined),
-				};
-				return new Proxy(snap, {
-					set(target, prop, value) {
-						target[prop] = value;
-						ref.set(ctor, { [prop]: value } as Record<string, unknown>);
-						return true;
-					},
-				});
-			}) as T;
-			yield { entity: ref, comps };
+			const components = Object.fromEntries(
+				this.types.map(([name, ctor]) => {
+					const snap: Record<string | symbol, unknown> = {
+						...(ref.get(ctor) as Record<string, unknown> | undefined),
+					};
+					return [
+						name,
+						new Proxy(snap, {
+							set(target, prop, value) {
+								target[prop] = value;
+								ref.set(ctor, { [prop]: value } as Record<string, unknown>);
+								return true;
+							},
+						}),
+					];
+				}),
+			) as T;
+			yield { entity: ref, components };
 		}
 	}
 
@@ -229,13 +238,14 @@ export class World {
 		ref.destroy();
 	}
 
-	query<T extends object[]>(...ctors: Ctor[]): Query<T> {
+	query<const S extends ComponentSpec>(spec: S): Query<ComponentsOf<S>> {
 		this.ensureNotDisposed();
-		const traits = ctors.map(traitFor);
-		return new Query<T>(() => {
+		const entries = Object.entries(spec) as [string, Ctor][];
+		const traits = entries.map(([, ctor]) => traitFor(ctor));
+		return new Query<ComponentsOf<S>>(() => {
 			this.ensureNotDisposed();
 			return this.#koota.query(...traits).map((entity) => new EntityRef(this, entity));
-		}, ctors);
+		}, entries);
 	}
 
 	update(dt: number): void {

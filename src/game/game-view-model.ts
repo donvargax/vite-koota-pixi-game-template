@@ -1,5 +1,17 @@
 import { EntityRef, World } from "../ecs/design2.ts";
-import { FoeTag, Gun, Health, PlayerTag, Position, Sprite, Velocity } from "./components.ts";
+import {
+	Aim,
+	AimGun,
+	DashState,
+	FoeTag,
+	Facing,
+	Gun,
+	Health,
+	PlayerTag,
+	Position,
+	Sprite,
+	Velocity,
+} from "./components.ts";
 import type { AudioPort, RandomPort } from "./contracts.ts";
 import { SFX } from "./sound-assets.ts";
 
@@ -105,14 +117,14 @@ export class GameViewModel {
 	getRenderProjection(): RenderProjection {
 		this.ensureStarted();
 		const entities: RenderEntityProjection[] = [];
-		for (const { entity, comps } of this.world.query<[Position, Sprite, Velocity]>(
-			Position,
-			Sprite,
-			Velocity,
-		)) {
-			const [position, sprite, velocity] = comps;
+		for (const { entity, components } of this.world.query({
+			position: Position,
+			sprite: Sprite,
+			velocity: Velocity,
+		})) {
+			const { position, sprite, velocity } = components;
 			const airborne = position.y > 1;
-			const facing = entity.get(Gun)?.dir ?? (velocity.x < 0 ? -1 : 1);
+			const facing = entity.get(Facing)?.x ?? (velocity.x < 0 ? -1 : 1);
 			entities.push(
 				Object.freeze({
 					id: entity.id,
@@ -145,6 +157,10 @@ export class GameViewModel {
 			new Sprite("player"),
 			new PlayerTag(),
 			new Gun(),
+			new AimGun(),
+			new Facing(),
+			new Aim(),
+			new DashState(),
 		);
 	}
 
@@ -159,7 +175,7 @@ export class GameViewModel {
 	}
 
 	private foeCount(): number {
-		return this.world.query(Position, FoeTag).count;
+		return this.world.query({ position: Position, foe: FoeTag }).count;
 	}
 
 	private playStateSounds(health: number, foeCount: number, alive: boolean): void {

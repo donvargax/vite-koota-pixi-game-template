@@ -36,29 +36,29 @@ const executionOrder: string[] = [];
 
 @system({ priority: 10 })
 class Movement extends GameSystem {
-	constructor(private readonly targets: Query<[Position, Velocity]>) {
+	constructor(private readonly targets: Query<{ position: Position; velocity: Velocity }>) {
 		super();
 	}
 
 	execute(dt: number): void {
 		executionOrder.push("movement");
-		for (const { comps } of this.targets) {
-			comps[0].x += comps[1].x * dt;
-			comps[0].y += comps[1].y * dt;
+		for (const { components } of this.targets) {
+			components.position.x += components.velocity.x * dt;
+			components.position.y += components.velocity.y * dt;
 		}
 	}
 }
 
 @system({ priority: 20 })
 class Death extends GameSystem {
-	constructor(private readonly dying: Query<[Health]>) {
+	constructor(private readonly dying: Query<{ health: Health }>) {
 		super();
 	}
 
 	execute(): void {
 		executionOrder.push("death");
-		for (const { entity, comps } of this.dying) {
-			if (comps[0].value <= 0) entity.destroy();
+		for (const { entity, components } of this.dying) {
+			if (components.health.value <= 0) entity.destroy();
 		}
 	}
 }
@@ -70,18 +70,18 @@ describe("design2 (scoped ECS)", () => {
 
 		@system()
 		class ReadsPositions extends GameSystem {
-			constructor(private readonly targets: Query<[Position]>) {
+			constructor(private readonly targets: Query<{ position: Position }>) {
 				super();
 			}
 
 			execute(): void {
-				for (const { comps } of this.targets) positions.push(comps[0].x);
+				for (const { components } of this.targets) positions.push(components.position.x);
 			}
 		}
 
 		const world = World.create((created) => {
 			factoryWorld = created;
-			return [new ReadsPositions(created.query(Position))];
+			return [new ReadsPositions(created.query({ position: Position }))];
 		});
 		world.spawn(new Position(7, 0));
 		world.update(0);
@@ -169,12 +169,12 @@ describe("design2 (scoped ECS)", () => {
 		expect(() =>
 			World.create((world) => {
 				createdWorld = world;
-				world.query(Unregistered);
+				world.query({ unregistered: Unregistered });
 				return [];
 			}),
 		).toThrow(/missing @component/);
 
-		expect(() => createdWorld?.query(Position)).toThrow(/disposed World/);
+		expect(() => createdWorld?.query({ position: Position })).toThrow(/disposed World/);
 	});
 
 	it("rejects asynchronous factories, constructors, reused arrays, and instances", () => {
@@ -199,8 +199,8 @@ describe("design2 (scoped ECS)", () => {
 	it("moves entities and removes the dead in deterministic priority order", () => {
 		executionOrder.length = 0;
 		const world = World.create((created) => [
-			new Movement(created.query(Position, Velocity)),
-			new Death(created.query(Health)),
+			new Movement(created.query({ position: Position, velocity: Velocity })),
+			new Death(created.query({ health: Health })),
 		]);
 		const player = world.spawn(new Position(0, 0), new Velocity(10, 0), new Health(100));
 		world.spawn(new Position(0, 0), new Velocity(0, 0), new Health(0));
@@ -208,7 +208,7 @@ describe("design2 (scoped ECS)", () => {
 		world.update(0.5);
 
 		expect(player.get(Position)?.x).toBe(5);
-		expect(world.query(Health).count).toBe(1);
+		expect(world.query({ health: Health }).count).toBe(1);
 		expect(executionOrder).toEqual(["movement", "death"]);
 		world.dispose();
 	});
@@ -256,7 +256,7 @@ describe("design2 (scoped ECS)", () => {
 		const values: number[] = [];
 		@system()
 		class ReadsWorld extends GameSystem {
-			constructor(private readonly positions: Query<[Position]>) {
+			constructor(private readonly positions: Query<{ position: Position }>) {
 				super();
 			}
 
@@ -265,8 +265,12 @@ describe("design2 (scoped ECS)", () => {
 			}
 		}
 
-		const first = World.create((created) => [new ReadsWorld(created.query(Position))]);
-		const second = World.create((created) => [new ReadsWorld(created.query(Position))]);
+		const first = World.create((created) => [
+			new ReadsWorld(created.query({ position: Position })),
+		]);
+		const second = World.create((created) => [
+			new ReadsWorld(created.query({ position: Position })),
+		]);
 		first.spawn(new Position(1, 2));
 		first.update(0);
 		second.update(0);
@@ -308,7 +312,7 @@ describe("design2 (scoped ECS)", () => {
 		expect(destroyed).toEqual(["second", "first"]);
 		expect(() => world.update(0)).toThrow(/disposed World/);
 		expect(() => world.spawn(new Position())).toThrow(/disposed World/);
-		expect(() => world.query(Position)).toThrow(/disposed World/);
+		expect(() => world.query({ position: Position })).toThrow(/disposed World/);
 	});
 
 	it("rejects unsupported component defaults, constructors, and spawned values", () => {

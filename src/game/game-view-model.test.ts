@@ -1,17 +1,23 @@
 import { describe, expect, it } from "vite-plus/test";
 import { World } from "../ecs/design2.ts";
-import type { AudioPort, InputPort, RandomPort } from "./contracts.ts";
+import type { AudioPort, Direction2D, InputPort, RandomPort } from "./contracts.ts";
 import { SFX } from "./sound-assets.ts";
 import { GameViewModel } from "./game-view-model.ts";
 import { createGameSystems } from "./systems.ts";
 
 class FakeInput implements InputPort {
 	axis = 0;
+	aim: Direction2D = { x: 0, y: 0 };
 	jumpPressed = false;
 	shootHeld = false;
+	dashPressed = false;
 
 	moveAxis(): number {
 		return this.axis;
+	}
+
+	aimAxis(): Direction2D {
+		return this.aim;
 	}
 
 	consumeJumpPressed(): boolean {
@@ -22,6 +28,12 @@ class FakeInput implements InputPort {
 
 	isShootHeld(): boolean {
 		return this.shootHeld;
+	}
+
+	consumeDashPressed(): boolean {
+		const pressed = this.dashPressed;
+		this.dashPressed = false;
+		return pressed;
 	}
 }
 
@@ -75,6 +87,18 @@ describe("GameViewModel", () => {
 			playerX: 0,
 		});
 		expect(model.getRenderProjection().entities).toHaveLength(4);
+		model.dispose();
+		world.dispose();
+	});
+
+	it("moves the composed player when a dash edge is pressed", () => {
+		const { model, input, world } = createModel([0.5], []);
+
+		model.start();
+		input.dashPressed = true;
+		model.tick(0.01);
+
+		expect(model.getHudProjection().playerX).toBe(6);
 		model.dispose();
 		world.dispose();
 	});

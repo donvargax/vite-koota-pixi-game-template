@@ -10,7 +10,7 @@ import { createGameSystems } from "./game/systems.ts";
 document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
   <main style="font-family: system-ui; color: #e6edf3; background: #0b1020; min-height: 100vh; padding: 24px">
     <h1>Terrariavania — sprite demo</h1>
-    <p>Move <code>A</code>/<code>D</code> or <code>←</code>/<code>→</code>, jump <code>W</code>/<code>↑</code>, shoot <code>Space</code>. CC0 art/audio by Kenney (see <code>docs/assets.md</code>).</p>
+    <p>Move <code>←</code>/<code>→</code>, jump <code>↑</code>, aim <code>W</code>/<code>A</code>/<code>S</code>/<code>D</code>, dash <code>Shift</code>, shoot both guns with <code>Space</code>. CC0 art/audio by Kenney (see <code>docs/assets.md</code>).</p>
     <div style="display:flex; gap:24px; align-items:flex-start">
       <div id="stage" style="width:480px; height:320px; border:1px solid #30363d"></div>
       <div>
