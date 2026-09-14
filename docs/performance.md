@@ -88,6 +88,42 @@ Open `report.html` directly. Load `.cpuprofile` files in Chrome DevTools
 Performance and open trace JSON in Perfetto or a compatible Chrome tracing
 viewer. Diagnostic timing never changes `originalVerdict`.
 
+## CI And Nightly Integration
+
+The current workflows collect candidates but do not enforce performance:
+
+| Workflow job                                                                 | Runner         | Command                      | Status          |
+| ---------------------------------------------------------------------------- | -------------- | ---------------------------- | --------------- |
+| `Performance collection` in `.github/workflows/ci.yml`                       | `ubuntu-24.04` | `vp run perf --collect`      | collection only |
+| `Full performance collection` in `.github/workflows/performance-nightly.yml` | `ubuntu-24.04` | `vp run perf:full --collect` | collection only |
+
+Both workflows run the native performance type check, install the pinned
+Chromium setup, and pass trusted policy and scenario inputs. CI reads policy,
+scenarios, and an accepted baseline from the trusted base revision when those
+files exist; it does not accept a candidate baseline. Nightly reads the
+tracked files on trusted main and uploads compact metrics/history with a
+requested 90-day retention and diagnostics/source maps with a requested
+14-day retention. Repository retention limits may shorten those requests.
+
+There is currently no accepted `performance/baselines/ci.json`, so the
+trusted-input preparation records a missing baseline and cannot establish an
+enforcing comparison. The performance job is not a required branch-protection
+check; requiring it is an administrator action after calibration and baseline
+bootstrap are complete. No CI or nightly run ID is recorded in this repository,
+so workflow execution and retention are not claimed as verified here.
+
+Local baseline acceptance is explicit and machine-compatible only. It requires
+a complete valid clean candidate and `perf:baseline --from <run-dir> --accept`;
+it never promotes data to the tracked CI baseline. Same-machine local
+baselines still require representative operating conditions and must not be
+copied between incompatible environments.
+
+The verified browser scope is headless Chromium and its observed CDP surface.
+Software-GPU or hardware-GPU behavior is not calibrated or accepted as a
+performance capability; renderer/backend and optional GPU identity are
+observation fields only. The harness does not provide completed GPU profiling
+or GPU-memory accounting.
+
 Exit status `0` means an accepted comparison or explicitly successful
 collection/diagnosis. Status `1` means a valid performance or capacity
 regression. Status `2` means invalid input, incomplete workload/observations,
@@ -104,10 +140,10 @@ infrastructure failure.
 
 ## Verification Status
 
-The tracked policy is intentionally uncalibrated until Phase 9, so a normal
-enforcing run must not claim a production comparison. On 2026-09-14, the fast
-collection command below was measured locally at 376 seconds wall time and
-57,343,945 bytes of output:
+The tracked policy is intentionally uncalibrated, so a normal enforcing run
+must not claim a production comparison. On 2026-09-14, the fast collection
+command below was measured locally at 376 seconds wall time and 57,343,945
+bytes of output:
 
 ```sh
 vp run perf --collect --output performance-results/phase7-collect-timed
@@ -117,8 +153,14 @@ It exited `2` because the existing Phase 4 scenario writer does not include a
 required `workload` record in its raw output; the CLI preserved those records
 and marked them invalid instead of fabricating workload data. The default
 policy collect/accept/successful-compare demonstration therefore remains
-pending the owning workload-record fix and Phase 9 calibration. The disposable
-CLI tests use explicit temporary policy, manifest, baseline, and output paths
-to verify successful comparison, automatic regression escalation, diagnostic
-failure preservation, and full-mode evidence without changing tracked policy
-or accepting production data.
+blocked by the owning workload-record fix and Phase 9 calibration. The
+disposable CLI tests use explicit temporary policy, manifest, baseline, and
+output paths to verify successful comparison, automatic regression escalation,
+diagnostic failure preservation, and full-mode evidence without changing
+tracked policy or accepting production data.
+
+The canonical retained invalid-workload receipt is
+`performance-results/phase8-collection/summary.md`; it reports
+`workload-invalid` for the fast scenarios. No calibration run IDs, accepted
+baseline provenance, or CI/nightly run IDs are available, so none are asserted
+by this handoff.

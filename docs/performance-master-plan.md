@@ -1,6 +1,9 @@
 # Continuous Performance Implementation Plan
 
-Status: implementation specification only. No application or harness code has been written for this plan.
+Status: implementation specification with Phase 9 blocked. The local command,
+diagnostic, reporting, and collection workflow surfaces exist, but calibration,
+accepted baseline, enforcing CI, and end-to-end Phase 10 handoff claims remain
+unverified.
 
 **Goal**
 Provide a local-first, automated browser performance loop: build the production game, execute repeatable workloads, detect regressions, automatically replay affected workloads under profilers, and report source-level evidence. CI runs the same commands as enforcement. Nightly runs exercise larger workloads and collect diagnostics even when measurements pass.
@@ -271,6 +274,12 @@ Phase gate: finish step 60's default-policy local collect/accept/successful-comp
 **Phase 10: Handoff**
 Model: Luna High, medium reasoning. Purpose: close documentation and integration details. Input: verified workflows and commands. Output: complete operator and delegation handoffs.
 
+Current gate status: blocked by Phase 9. The tracked policy is uncalibrated,
+`performance/baselines/ci.json` is absent, and the retained collection receipt
+is `workload-invalid` because raw Phase 4 scenario records omit the required
+`workload` record. Steps 69-73 remain unchecked until valid calibration,
+baseline, and workflow receipts exist.
+
 - [ ] **69 | Update `docs/e2e.md`.** Prerequisites: 60, 66-68. Replace planned labels with verified command/config behavior; link `docs/performance.md`. State ordinary E2E and performance jobs are separate parts of the same validation pipeline, and preserve black-box/fake-clock boundaries. Acceptance: no conflicting command or permission remains.
 
 - [ ] **70 | Update `docs/performance.md`.** Prerequisites: 68-69. Add actual CI status/check name, trusted base-policy behavior, local versus CI baseline acceptance, history retention, nightly artifacts, required-check setup and browser-upgrade procedure. State same-machine local baselines still need representative operating conditions. Document headless/software-GPU scope and any capability limits without presenting them as completed GPU profiling. Acceptance: commands match scripts and one-command escalation is demonstrated.
@@ -292,6 +301,41 @@ Verification-only actions; fixes return to their one-file owning step.
 - Confirm full passing runs also retain diagnostics and allocation evidence. Unsupported features, truncation, stale/wrong builds and replay non-reproduction must be visible.
 - Confirm CI policies come from trusted base inputs; current PR cannot pass merely by weakening its budget file. Confirm missing baseline does not silently bootstrap enforcement.
 - Exercise actual CI/nightly workflows and preserve their URLs/IDs when repository access exists. Without that access, implementation can be locally complete but CI verification must remain explicitly incomplete until an authorized operator runs it.
+
+## Current Handoff Receipt
+
+Receipt date: 2026-09-14. This receipt covers the documentation-only Phase 10
+handoff attempt and does not override the Phase 9 gate.
+
+- Changed files: `docs/e2e.md`, `docs/performance.md`, `TODO.md`,
+  `docs/performance-contract.md`, and this plan.
+- `vp check`: pass; all 107 files formatted, with no warnings, lint errors, or
+  type errors in 68 checked files.
+- `vp test`: pass; 23 test files and 130 tests passed.
+- `vp exec tsc -p tsconfig.performance.json`: pass.
+- `vp run audit`: completed with two existing duplication warnings in
+  `performance/cli.ts`/`performance/process.ts` and
+  `performance/cli.ts`/`performance/evidence.ts`; no dead-code or complexity
+  findings were reported.
+- `git diff --check`: pass.
+- Local collection receipt:
+  `performance-results/phase8-collection/summary.md` reports
+  `workload-invalid`; the raw Phase 4 records omit the required `workload`
+  record. The tracked policy remains `calibrated: false` and
+  `performance/baselines/ci.json` is absent.
+- CI/nightly run IDs, calibration run IDs, report/profile paths from valid
+  calibration, and accepted-baseline provenance: none available. They are not
+  invented or claimed.
+- Not run for this documentation-only handoff: `vp run test:coverage`,
+  `vp run build`, `vp run e2e`, or CI/nightly workflows. Those results cannot
+  establish Phase 9 calibration or enforcement, and the local performance
+  collection prerequisite is already workload-invalid.
+
+Steps 64-73 remain unchecked. The exact blocker is the owning workload-record
+fix, followed by five valid fast and three valid full calibration invocations;
+only then can policy, baseline, enforcing CI, and the dependent Phase 10
+acceptance claims be verified. Required-check configuration remains an
+administrator action after those prerequisites and is not claimed here.
 
 **Fresh-Instance Prompt**
 Use this template for each step; fill only the bracketed fields.

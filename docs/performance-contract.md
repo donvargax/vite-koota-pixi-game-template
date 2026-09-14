@@ -1,8 +1,9 @@
 # Performance Contracts
 
-Status: Phase 6 diagnostics handoff. This document fixes the wire vocabulary
-and runner boundaries for the performance loop. Numerical budgets are still
-uncalibrated; platform capabilities are observed at runtime.
+Status: Phase 10 documentation handoff, blocked by the Phase 9 calibration
+prerequisite. This document fixes the wire vocabulary and runner boundaries for
+the performance loop. Numerical budgets are still uncalibrated; platform
+capabilities are observed at runtime.
 
 ## Scope And Fixed Decisions
 
@@ -15,8 +16,9 @@ gameplay E2E remain separate black-box surfaces.
 The phase handoffs are `docs/performance-runtime.md` for lifecycle ownership,
 `docs/performance-workloads.md` for declared load and validity,
 `docs/performance-measurement.md` for clean records and collection boundaries,
-and `docs/performance-diagnostics.md` for CDP evidence, source maps, and
-offline reports.
+`docs/performance-diagnostics.md` for CDP evidence, source maps, and offline
+reports, `docs/performance-calibration.md` for the still-blocked calibration
+procedure, and `docs/performance.md` for operator commands and integration.
 
 The implementation uses existing Playwright and Chromium/CDP plus
 `@jridgewell/trace-mapping`. Node 24 native erasable TypeScript is used for the
@@ -303,7 +305,7 @@ coverage remains explicitly unsupported by this harness.
 
 ## CLI Grammar
 
-The planned commands are:
+The implemented command surface is:
 
 ```text
 vp run perf [--collect] [--policy <path>] [--baseline <path>]
@@ -319,7 +321,10 @@ provenance, and never used to delete arbitrary files. CI passes trusted policy,
 baseline, and required-scenario inputs explicitly. `perf` measures the fast
 set and diagnoses absolute failures; `perf:full` measures all scenarios and
 always runs CPU/trace plus lifecycle allocation evidence. `--collect` is an
-explicit unbaselined collection request.
+explicit unbaselined collection request. The commands are implemented, but the
+tracked policy is uncalibrated and the production default-policy collection is
+currently workload-invalid, so this grammar does not imply a successful
+enforcing comparison.
 
 Exit code `0` means accepted, or an explicitly requested successful
 collection/diagnosis. Exit code `1` means performance or capacity regression.
@@ -346,7 +351,7 @@ owned build uses `dist-performance/`. Generated output is ignored; reviewed
 policy and the tracked CI baseline remain source files. Reports reference raw
 records instead of mutating them.
 
-## Planned Public Modules
+## Public Handoff Modules
 
 The following modules and configuration files are public handoff surfaces. Each
 module exports only the responsibility named here; internal helpers remain
@@ -403,6 +408,33 @@ private.
 The normal `src/main.ts`, gameplay Playwright config, and ordinary E2E surface
 retain their current ownership and rules unless a later numbered step names an
 explicit change.
+
+## Current Integration Status
+
+The local command surface and collection workflows are present, but the Phase 9
+enforcement prerequisites are not satisfied:
+
+- `performance/budgets.json` has `calibrated: false` and no required metric
+  thresholds.
+- `performance/baselines/ci.json` does not exist, so no tracked CI baseline is
+  accepted or authoritative.
+- `.github/workflows/ci.yml` and
+  `.github/workflows/performance-nightly.yml` are explicitly collection jobs;
+  neither is a required performance gate.
+- The retained receipt at
+  `performance-results/phase8-collection/summary.md` reports
+  `workload-invalid` because the raw Phase 4 scenario writer omitted the
+  required `workload` record. The CLI preserves that failure rather than
+  fabricating workload data.
+- No calibration run IDs, accepted-baseline provenance, or CI/nightly run IDs
+  are available in the repository evidence.
+
+The exact prerequisite blocker is the owning workload-record fix followed by
+five valid fast and three valid full calibration invocations for the reference
+environment. Until those receipts exist, steps 64-68 and the Phase 10
+acceptance claims remain open. Observed headless Chromium/CDP capabilities are
+documented above and in `docs/performance-diagnostics.md`; they do not imply
+GPU profiling or GPU-memory coverage.
 
 ## Phase Ownership And Verification
 

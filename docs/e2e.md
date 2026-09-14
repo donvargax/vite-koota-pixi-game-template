@@ -187,10 +187,11 @@ the damage button belongs only to demo smoke coverage.
 Exact physics and ECS behavior remain in Vitest. Add browser coverage for a
 player-facing outcome, not a duplicate assertion about an internal component.
 
-## Planned Performance Commands
+## Performance Commands And Status
 
-The following commands are planned and are not implemented until the numbered
-performance-plan steps that own them are complete:
+The following commands are implemented as separate performance scripts. They
+use the production performance build, the independent Playwright configuration,
+and the fresh-context/CDP boundaries described above:
 
 ```sh
 vp run perf
@@ -200,10 +201,26 @@ vp run perf:baseline --from <run-dir> --accept
 ```
 
 They run alongside ordinary `vp run e2e`; they do not replace or alter the
-gameplay projects above. CI will invoke the performance command separately
-after the production performance build, fixture, validity gate, comparison,
-and trusted-input wiring are implemented. Until then, readers must not infer
-that these commands exist or that a gameplay E2E pass is a performance result.
+gameplay projects above. The CI workflow currently invokes `perf --collect` in
+a separate `Performance collection` job, and the nightly workflow invokes
+`perf:full --collect` in a separate `Full performance collection` job. These
+jobs are collection workflows, not required performance gates.
+
+The tracked policy is still uncalibrated and
+`performance/baselines/ci.json` is absent. The local fast collection receipt
+at `performance-results/phase8-collection/summary.md` is
+`workload-invalid`: the raw Phase 4 scenario writer does not include the
+required `workload` record, so the CLI preserves the records as invalid. No
+local candidate from that receipt may be accepted as a baseline. Phase 9
+calibration, baseline, and enforcement therefore remain blocked on the owning
+workload-record fix and the required valid calibration runs.
+
+Ordinary gameplay E2E remains independently verifiable and must not be treated
+as a performance result. No CI or nightly run ID is recorded here because no
+such receipt is available in this repository.
+
+See [performance automation](performance.md) for command details, artifacts,
+workflow behavior, and the current verification receipt.
 
 References: [Playwright-BDD](https://vitalets.github.io/playwright-bdd/),
 [browser clock](https://playwright.dev/docs/clock),

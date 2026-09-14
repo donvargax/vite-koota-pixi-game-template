@@ -26,10 +26,17 @@ with tests/e2e updated and all gates green (`vp check`, `fallow audit`).
 9. [ ] **Content and shell**: add the boss slice, a licensed looping music
        track, and touch input/PWA packaging. Keep attribution and license checks in
        `docs/assets.md`.
-10. [ ] **Frame-time profiling and budgets**: expose rAF frame deltas on
-        `window.__game`, run a scripted 50-zombie/10-second firing scene in
-        Playwright, collect the distribution, and assert p95 < 20ms in CI. A
-        Chromium tracing file may be captured for flame-graph inspection.
+10. [ ] **Performance automation and budgets**: use the separate visible
+        `performance.html` surface and the implemented commands in
+        [`docs/performance.md`](docs/performance.md). Local collection,
+        diagnostics, reports, and ignored local-baseline plumbing are
+        implemented without a `window.__game` hook. The tracked policy remains
+        uncalibrated, no CI baseline is accepted, and the collection receipt
+        at [`performance-results/phase8-collection/summary.md`](performance-results/phase8-collection/summary.md)
+        is `workload-invalid` because raw scenario records lack the required
+        `workload` record. The owning workload-record fix, valid calibration,
+        accepted baseline, enforcing CI, and required-check setup remain
+        pending. Keep this item open until those claims have receipts.
 11. [ ] **SoA compiler spike (DEFERRED)**: see
         `docs/future/ecs-compiler.md`; begin only after profiling shows sustained
         pressure at 10k+ entities, not for elegance.
