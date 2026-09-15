@@ -1,11 +1,25 @@
-# Local Performance Automation
+# Performance
 
-The local performance loop builds the optimized benchmark entry, starts an
-owned loopback preview, runs fresh Chromium contexts, writes bounded raw
-records, compares clean measurements, and replays selected failures under
-diagnostics. The normal gameplay E2E command remains separate.
+The performance loop is a local-first, browser-level check for sustained game
+work. It builds the optimized `performance.html` entry, owns a loopback preview,
+runs fresh headless Chromium contexts, stores bounded clean measurements, compares
+them with an explicit baseline, and replays selected cases under diagnostics.
+Ordinary gameplay E2E remains a separate black-box check.
 
-## Setup
+## Status
+
+The implementation is operational, but enforcement is not calibrated:
+
+- `performance/budgets.json` is intentionally `calibrated: false`.
+- `performance/baselines/ci.json` does not exist.
+- CI and nightly workflows collect candidates; neither is a required gate.
+- The retained Phase 8 receipt is invalid because its old records lacked the
+  required workload payload. The transport and full-matrix fixes are present,
+  but still need stable-runner verification.
+- No accepted baseline, calibration run IDs, or verified CI/nightly run IDs are
+  available. Do not describe local recovery runs as authoritative.
+
+## Setup And Commands
 
 From the repository root:
 
@@ -15,19 +29,17 @@ vp exec playwright install chromium
 vp run typecheck:performance
 ```
 
-The runner owns `dist-performance/`, the preview process, and each run's
-`performance-results/<run-id>/` directory. Do not start a manual preview for a
-performance command.
+The runner owns `dist-performance/`, its preview process, and each
+`performance-results/<run-id>/` directory. Do not start a manual preview for
+these commands.
 
-## Commands
-
-Collect a fast candidate without enforcing a baseline:
+Collect without enforcing a baseline:
 
 ```sh
 vp run perf --collect --output performance-results/local-collect
 ```
 
-Accept a valid clean local candidate explicitly:
+Explicitly accept a complete, valid local candidate:
 
 ```sh
 vp run perf:baseline \
@@ -36,7 +48,7 @@ vp run perf:baseline \
   --accept
 ```
 
-Run the enforcing fast loop against that local baseline:
+Compare against that local baseline:
 
 ```sh
 vp run perf \
@@ -44,140 +56,199 @@ vp run perf \
   --output performance-results/local-enforce
 ```
 
-Select scenarios with a comma-separated `--scenario` value:
+Other useful commands:
 
 ```sh
+# Select scenarios with a comma-separated value.
 vp run perf --scenario idle,movement --collect
-```
 
-Force evidence for one scenario without comparison:
-
-```sh
-vp run perf:diagnose \
-  --scenario idle \
+# Force CPU/trace evidence for one scenario.
+vp run perf:diagnose --scenario idle \
   --output performance-results/idle-diagnosis
-```
 
-Compare the ECS query representation on the current branch:
+# Run the complete clean matrix plus diagnostics.
+vp run perf:full --collect --output performance-results/full-collect
 
-```sh
+# Compare the ECS query representation benchmark.
 QUERY_VARIANT=named vp run perf:query
 ```
 
-Run the same command on `perf/positional-query-baseline` with
-`QUERY_VARIANT=positional`. This opt-in benchmark measures eight samples of a
-fixed 50-foe/100-projectile combat tick workload after a 30-tick warmup. It
-prints JSON timing distributions and is skipped by ordinary `vp test` runs.
+`perf` and `perf:full` accept `--policy`, `--baseline`,
+`--required-scenarios`, `--output`, and `--baseline-dir`. Inputs are validated,
+recorded as provenance, and are never deleted. `perf:full` is intentionally
+expensive: it runs 21 clean repetitions, including three 60-second lifecycle
+repetitions, then replays selected scenarios. Use a dedicated CI/nightly runner
+for calibration rather than repeatedly running it on a developer laptop.
 
-Run the full scenario set. Full mode runs CPU/trace evidence for selected
-scenarios and the allocation pass:
+## Workloads
 
-```sh
-vp run perf:full --collect --output performance-results/full-collect
+`performance/scenarios.json` is the validated source of scenario definitions.
+The harness selects only declared scenarios and never imports game code or
+inspects ECS/Pixi state. Each repetition uses a fresh page and context, one
+Chromium worker, real browser time, and no gameplay fake clock.
+
+| Selection       | Scenarios                                               |              Warm-up |                Sample | Repetitions |
+| --------------- | ------------------------------------------------------- | -------------------: | --------------------: | ----------: |
+| fast            | `idle`, `movement`, `firing`, `foes-50`                 |                  2 s |                   8 s |           3 |
+| full            | fast set, `bullets-250`, `bullets-1000`, `lifecycle-60` | 3 s for stress cases | 15 s for stress cases |           3 |
+| diagnostic only | `diagnostic-self-test`                                  |                  2 s |                   5 s |           1 |
+
+`foes-50` maintains exactly 50 foes. `bullets-250` uses 50 foes and 250
+bolts; `bullets-1000` uses 200 foes and 1,000 bolts; `lifecycle-60` samples for
+60 seconds. The diagnostic self-test is never baseline data.
+
+The workload adapter starts from an empty synthetic world, then uses real
+movement, AI, collision, death, shooting, and floor-correction systems. It
+maintains seeded foes in world x `[-160, 160]`, uses finite-lived nonzero-damage
+bolts, keeps 80% in an upper collision-scan lane and 20% in the ground collision
+lane, and recycles/replenishes bounded populations. Maintenance is measured as
+game callback work. Seeded setup is repeatable for equal timestep sequences;
+variable frame timing still changes trajectories.
+
+Validity precedes performance comparison. A window is invalid for missing
+populations, insufficient visible bolts, exceeded ceilings, missing progress,
+stalled simulation, dropped/truncated samples, input lateness, browser errors,
+wrong build, or incomplete required records. A valid but slow workload is a
+capacity result, not permission to reduce the load.
+
+## Clean Measurement
+
+Raw records are written before assertions, including failed repetitions:
+
+```text
+performance-results/<run-id>/measurements/<scenario>-<repetition>.json
 ```
 
-Full mode is intentionally expensive. It runs the complete clean matrix,
-including three 60-second `lifecycle-60` repetitions, then replays selected
-scenarios under CPU/trace and allocation diagnostics. Do not use it repeatedly
-on a developer laptop for calibration. Use `--scenario <id>` to isolate one
-workload while debugging, and use the dedicated CI/nightly runner for the
-five-fast/three-full calibration set.
+The optimized build must expose the expected build ID and matching external
+source maps. The visible benchmark page provides normal HUD values plus
+scenario, build, renderer, load, progress, and Start/Begin/End/Stop controls.
+The measured window is delimited by visible sample controls and User Timing
+marks; warm-up and control actions are excluded.
 
-All path inputs can be overridden explicitly with `--policy`, `--baseline`,
-`--required-scenarios`, `--output`, and `--baseline-dir`. Paths are recorded as
-provenance. The runner never deletes arbitrary input paths.
+Collected values include:
 
-## Results
+- raw RAF elapsed time for observed cadence;
+- total callback work and workload, simulation, HUD, projection,
+  render-submission, and after-render phase times;
+- workload counts, visibility, progress, simulation seconds, and wall seconds;
+- optional Long Task data and CDP `TaskDuration`/`JSHeapUsedSize` boundaries;
+- environment, build, scenario, and workload fingerprints.
+
+RAF is cadence, not GPU time. `render-submission` is CPU submission time, not
+GPU duration. Heap boundaries cover JavaScript heap only, not textures, native
+allocations, browser memory, or GPU memory. Unsupported values are `null` with
+a reason, never zero. Buffers are bounded and dropped entries are failures.
+
+Comparison aggregates each repetition, then uses the median repetition
+aggregate. Frame samples are never pooled across repetitions. A regression is
+an absolute ceiling breach or a degradation exceeding both the reviewed
+relative threshold and minimum absolute delta. Valid-load simulation/wall-time
+degradation is a capacity failure.
+
+## Verdicts And Artifacts
+
+Exit status:
+
+| Status | Meaning                                                                                                          |
+| -----: | ---------------------------------------------------------------------------------------------------------------- |
+|    `0` | Accepted comparison, or explicitly successful collection/diagnosis                                               |
+|    `1` | Performance or capacity regression                                                                               |
+|    `2` | Invalid input/workload, missing or incompatible enforcement data, unsupported tooling, or infrastructure failure |
+
+Known regressions remain status `1` even if diagnostic replay fails. Diagnostic
+results never replace the original clean verdict.
 
 Each run contains:
 
 ```text
 performance-results/<run-id>/
   build/                 exact optimized JavaScript and source maps
-  measurements/          one raw JSON record per scenario/repetition
-  diagnostics/           CPU profiles, traces, allocation evidence
-  results.json           immutable comparison and evidence data
+  measurements/          bounded raw records
+  diagnostics/           profiles, traces, and allocation evidence
+  results.json           immutable comparison and evidence
   summary.md             offline summary
   report.html            static offline report
   artifact-manifest.json artifact inventory
 ```
 
-Open `report.html` directly. Load `.cpuprofile` files in Chrome DevTools
-Performance and open trace JSON in Perfetto or a compatible Chrome tracing
-viewer. Diagnostic timing never changes `originalVerdict`.
+Open `report.html` directly. Load `.cpuprofile` files in Chrome DevTools and
+trace JSON in Perfetto or a compatible local Chrome tracing viewer. Reports make
+no network request and reference artifacts with relative paths.
 
-## CI And Nightly Integration
+## Diagnostics
 
-The current workflows collect candidates but do not enforce performance:
+Clean measurement is trace-free. CPU sampling plus Chromium tracing is a
+separate `cpu-trace` replay; HeapProfiler allocation sampling is a separate
+`allocation` replay. Both use fresh pages and bounded evidence. Reference
+Playwright `1.63.0` and Chromium `153.0.8010.12` support CPU profiling,
+streamed tracing, and heap sampling through CDP.
 
-| Workflow job                                                                 | Runner         | Command                      | Status          |
-| ---------------------------------------------------------------------------- | -------------- | ---------------------------- | --------------- |
-| `Performance collection` in `.github/workflows/ci.yml`                       | `ubuntu-24.04` | `vp run perf --collect`      | collection only |
-| `Full performance collection` in `.github/workflows/performance-nightly.yml` | `ubuntu-24.04` | `vp run perf:full --collect` | collection only |
+Diagnostic defaults are a 5-second evidence window, 30-second trace-drain
+timeout, 100 MiB per trace, and 500 MiB total evidence per run. Traces are
+drained to EOF before closing; a capped or malformed trace is marked truncated,
+never presented as complete JSON. Missing capabilities, command failures,
+timeouts, detachment, and stream errors are explicit statuses.
 
-Both workflows run the native performance type check, install the pinned
-Chromium setup, and pass trusted policy and scenario inputs. CI reads policy,
-scenarios, and an accepted baseline from the trusted base revision when those
-files exist; it does not accept a candidate baseline. Nightly reads the
-tracked files on trusted main and uploads compact metrics/history with a
-requested 90-day retention and diagnostics/source maps with a requested
-14-day retention. Repository retention limits may shorten those requests.
+`performance/evidence.ts` consumes only local profiles, traces, built
+JavaScript, and source maps. It maps CPU samples with trace-mapping, preserves
+unmapped frames, avoids recursive double counting, and summarizes recognized
+GC/render spans without claiming complete process or GPU coverage.
 
-There is currently no accepted `performance/baselines/ci.json`, so the
-trusted-input preparation records a missing baseline and cannot establish an
-enforcing comparison. The performance job is not a required branch-protection
-check; requiring it is an administrator action after calibration and baseline
-bootstrap are complete. No CI or nightly run ID is recorded in this repository,
-so workflow execution and retention are not claimed as verified here.
+Instrumentation changes timing. It is evidence for investigation, not clean
+budget data. A slowdown not reproduced under instrumentation is
+`not-reproduced`; it does not clear a known clean regression.
 
-Local baseline acceptance is explicit and machine-compatible only. It requires
-a complete valid clean candidate and `perf:baseline --from <run-dir> --accept`;
-it never promotes data to the tracked CI baseline. Same-machine local
-baselines still require representative operating conditions and must not be
-copied between incompatible environments.
+## Calibration And Baselines
 
-The verified browser scope is headless Chromium and its observed CDP surface.
-Software-GPU or hardware-GPU behavior is not calibrated or accepted as a
-performance capability; renderer/backend and optional GPU identity are
-observation fields only. The harness does not provide completed GPU profiling
-or GPU-memory accounting.
+Calibration is per compatible environment identity: runner class, OS/arch,
+CPU, Node/Playwright/Chromium, renderer/backend, viewport/DPR, and relevant
+audio/throttling settings. Do not pool incompatible machines.
 
-Exit status `0` means an accepted comparison or explicitly successful
-collection/diagnosis. Status `1` means a valid performance or capacity
-regression. Status `2` means invalid input, incomplete workload/observations,
-missing or incompatible enforcement inputs, unsupported tooling, or an
-infrastructure failure.
+For one stable runner, retain at least five valid fast invocations and three
+valid full invocations in separate immutable directories. Every invocation must
+have complete coverage, valid workload, complete bounded samples, compatible
+fingerprints, and clean trace-free measurements. Retain per-repetition
+distributions, invocation variation, validity, capacity ratios, and build/
+environment provenance. Never replace an invalid repetition with a retry in the
+same output or discard a slow valid run.
 
-## Troubleshooting
+Choose thresholds above observed unchanged-run variation and verify sensitivity
+with disposable fixtures: unchanged, below-noise, meaningful regression,
+absolute ceiling, near-zero baseline, and capacity-failure cases. At least one
+source-level CPU-work gate and workload/capacity validity are required. Cadence,
+heap, and Long Task metrics may remain informational when noisy or unsupported.
 
-- `unbaselined-collection`: run `perf:baseline --from <run-dir> --accept` only after the run is complete and valid, then pass that baseline to enforcing `perf`.
-- `workload-invalid`: inspect the raw record's `workload.failures`, population boundaries, visible-bolt count, render progress, and sample completion. Do not accept the run.
-- `infrastructure-failure`: inspect `build/` and the command logs in the report. A build or readiness failure never reuses an unrelated server.
-- `wrong build` or environment mismatch: use the exact build ID and compatible local machine/runner identity; do not copy a baseline between machines.
-- Missing diagnostic artifacts: inspect the diagnostic status for unsupported CDP capabilities, truncation, stream-drain failure, or non-reproduction. The clean verdict remains authoritative.
+Local baselines are explicit, same-machine artifacts and are never copied across
+incompatible environments. CI baselines are reviewed tracked files; candidates
+and expiring workflow artifacts never become authoritative automatically.
 
-## Verification Status
+Do not continue full calibration on the reference laptop. Observed local
+`bullets-1000` and `lifecycle-60` slowdowns are capacity observations, not
+approved policy values.
 
-The tracked policy is intentionally uncalibrated, so a normal enforcing run
-must not claim a production comparison. On 2026-09-14, the fast collection
-command below was measured locally at 376 seconds wall time and 57,343,945
-bytes of output:
+## CI And Scope
 
-```sh
-vp run perf --collect --output performance-results/phase7-collect-timed
-```
+`.github/workflows/ci.yml` runs `vp run perf --collect`; the nightly workflow
+runs `vp run perf:full --collect`. Both use `ubuntu-24.04`, install the pinned
+Chromium setup, and upload candidate/history artifacts. CI reads trusted policy,
+scenario, and baseline inputs from the base revision when present, but does not
+accept a candidate baseline. The performance job is not currently a required
+branch-protection check.
 
-It exited `2` because the existing Phase 4 scenario writer did not include a
-required `workload` record in its raw output; the CLI preserved those records
-and marked them invalid instead of fabricating workload data. The workload
-transport and full-matrix collection fixes are now present in the working tree,
-but the default-policy collect/accept/successful-compare demonstration remains
-blocked by Phase 9 calibration. The disposable CLI tests use explicit temporary
-policy, manifest, baseline, and output paths to verify successful comparison,
-automatic regression escalation, diagnostic failure preservation, and full-mode
-evidence without changing tracked policy or accepting production data.
+The verified scope is headless Chromium and its observed CDP surface. Renderer,
+backend, and optional GPU identity are observation fields only. This harness
+does not provide completed GPU profiling or GPU-memory accounting.
 
-The canonical retained invalid-workload receipt is
-`performance-results/phase8-collection/summary.md`; it records the pre-fix
-fast scenarios. No calibration run IDs, accepted baseline provenance, or
-CI/nightly run IDs are available, so none are asserted by this handoff.
+## Related Code
+
+- `performance/contracts.ts`: wire records and statuses.
+- `performance/scenarios.json` and `performance/scenarios.ts`: workloads,
+  validation, selection, and fingerprints.
+- `performance/compare.ts` and `performance/baseline.ts`: verdicts and explicit
+  baseline acceptance.
+- `performance/diagnostics.ts` and `performance/evidence.ts`: bounded replay
+  and source-mapped evidence.
+- `performance/cli.ts`: build, preview, collection, comparison, escalation, and
+  reporting orchestration.
+- `src/game/browser-runtime.ts` and `src/benchmark/workload.ts`: shared runtime
+  and real-system workload adapter.
